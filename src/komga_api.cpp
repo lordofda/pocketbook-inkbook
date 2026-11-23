@@ -16,7 +16,8 @@ constexpr const char *kLibrariesPath = "/api/v1/libraries";
 bool isArrayResponse(const QString &purpose) {
   return purpose == QStringLiteral("test") || purpose == QStringLiteral("libraries") ||
          purpose == QStringLiteral("series") || purpose == QStringLiteral("books") ||
-         purpose == QStringLiteral("pages");
+          purpose == QStringLiteral("newSeries") || purpose == QStringLiteral("onDeck") ||
+          purpose == QStringLiteral("pages");
 }
 
 bool isPinningCompatible(QSslError::SslError error) {
@@ -142,6 +143,16 @@ int KomgaApi::fetchBooks(const QString &seriesId) {
   return beginRequest(QStringLiteral("books"),
                       makeRequest(QStringLiteral("/api/v1/books/list?unpaged=true"), true),
                       QJsonDocument(body).toJson(QJsonDocument::Compact));
+}
+
+int KomgaApi::fetchNewSeries() {
+  return beginRequest(QStringLiteral("newSeries"),
+                      makeRequest(QStringLiteral("/api/v1/series/new?unpaged=true")));
+}
+
+int KomgaApi::fetchOnDeck() {
+  return beginRequest(QStringLiteral("onDeck"),
+                      makeRequest(QStringLiteral("/api/v1/books/ondeck")));
 }
 
 int KomgaApi::fetchBook(const QString &bookId) {
@@ -373,6 +384,10 @@ void KomgaApi::onFinished() {
     emit seriesReceived(pending.id, items);
   } else if (pending.purpose == QStringLiteral("books")) {
     emit booksReceived(pending.id, items);
+  } else if (pending.purpose == QStringLiteral("newSeries")) {
+    emit newSeriesReceived(pending.id, items);
+  } else if (pending.purpose == QStringLiteral("onDeck")) {
+    emit onDeckReceived(pending.id, items);
   } else if (pending.purpose == QStringLiteral("pages")) {
     emit pagesReceived(pending.id, pending.bookId, items);
   }

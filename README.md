@@ -4,13 +4,17 @@
 
 A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It downloads whole books for offline reading, renders pages locally in grayscale, and syncs reading progress back to Komga.
 
+**Tested on device:** PocketBook InkPad Color 3 (B288), including setup, downloads, offline reading, account switching, progress sync, and reader controls.
+
 ## Features
 
 - Native PocketBook app, sideloaded as `komga-reader.app`.
 - Komga HTTPS connection with runtime-entered API key.
 - First-connection TLS certificate fingerprint pinning; no global SSL bypass.
 - Multiple Komga accounts: add, edit, switch, and delete from the **Accounts** top menu; each account has its own URL, API key, TLS pin, and book cache.
-- Library, series, books, and in-progress browsing.
+- Library, series, books, and in-progress browsing from the Home sections.
+- Recently added series and on-deck books, using Komga's `/api/v1/series/new` and `/api/v1/books/ondeck` views.
+- Search and A–Z title filtering on every list view.
 - Whole-book offline downloads with local grayscale conversion.
 - Offline books browser: open downloaded books without a server, delete local copies, and see cached size/count.
 - Progress sync:
@@ -27,7 +31,7 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 3. Disconnect/Eject the device and launch **Komga Reader** from Applications.
 4. Enter the Komga HTTPS URL and API key, then verify and trust the displayed SHA-256 certificate fingerprint.
 
-The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/`. Existing single-account installs are migrated to a `default` account on first launch.
+The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/`. Existing single-account installs are migrated to a `default` account on first launch. If cached books do not appear after upgrading, see [CACHE_RECOVERY.md](CACHE_RECOVERY.md).
 
 ## Security notes
 

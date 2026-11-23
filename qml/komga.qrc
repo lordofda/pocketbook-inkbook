@@ -4,6 +4,7 @@
     <file>ActionButton.qml</file>
     <file>ListRow.qml</file>
     <file>AccountRow.qml</file>
+    <file>FilterBar.qml</file>
     <file>InputField.qml</file>
   </qresource>
 </RCC>

@@ -33,6 +33,8 @@ class KomgaApi : public QObject {
   Q_INVOKABLE int fetchSeries(const QString &libraryId);
   Q_INVOKABLE int fetchBooks(const QString &seriesId);
   Q_INVOKABLE int fetchInProgressBooks();
+  Q_INVOKABLE int fetchNewSeries();
+  Q_INVOKABLE int fetchOnDeck();
   Q_INVOKABLE int fetchBook(const QString &bookId);
   Q_INVOKABLE int fetchPages(const QString &bookId);
   Q_INVOKABLE int updateProgress(const QString &bookId, int page, bool completed = false);
@@ -43,6 +45,8 @@ class KomgaApi : public QObject {
   void librariesReceived(int requestId, const QJsonArray &items);
   void seriesReceived(int requestId, const QJsonArray &items);
   void booksReceived(int requestId, const QJsonArray &items);
+  void newSeriesReceived(int requestId, const QJsonArray &items);
+  void onDeckReceived(int requestId, const QJsonArray &items);
   void bookReceived(int requestId, const QJsonObject &book);
   void pagesReceived(int requestId, const QString &bookId, const QJsonArray &items);
   void progressUpdated(int requestId, const QString &bookId, bool ok);

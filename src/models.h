@@ -26,6 +26,8 @@ struct BookInfo {
 class ListModel : public QAbstractListModel {
   Q_OBJECT
 
+  Q_PROPERTY(QString filter READ filter WRITE setFilter NOTIFY filterChanged)
+
  public:
   enum Role {
     IdRole = Qt::UserRole + 1,
@@ -46,12 +48,19 @@ class ListModel : public QAbstractListModel {
 
   void setItems(const QVector<ListItem> &items);
   void clear();
+  QString filter() const;
+  void setFilter(const QString &filter);
   ListItem itemAt(int row) const;
   int indexOfId(const QString &id) const;
 
  signals:
   void countChanged();
+  void filterChanged();
 
  private:
+  void rebuildVisible();
+
   QVector<ListItem> items_;
+  QVector<int> visible_;
+  QString filter_;
 };

@@ -17,6 +17,8 @@ Window {
         if (controller.view === "libraries") return "Libraries"
         if (controller.view === "offline") return "Offline books"
         if (controller.view === "accounts") return "Accounts"
+        if (controller.view === "recent") return controller.selectedTitle
+        if (controller.view === "onDeck") return controller.selectedTitle
         if (controller.view === "series") return controller.selectedTitle
         if (controller.view === "books") return controller.selectedTitle
         return controller.selectedTitle
@@ -58,7 +60,7 @@ Window {
             anchors.left: parent.left
             anchors.leftMargin: 24
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - 840
+            width: parent.width - 700
             text: root.headerTitle
             font.pixelSize: 34
             font.bold: true
@@ -75,6 +77,14 @@ Window {
             ActionButton {
                 width: 90
                 height: 60
+                text: "Home"
+                active: controller.view !== "setup" && controller.view !== "libraries"
+                onClicked: controller.goHome()
+            }
+
+            ActionButton {
+                width: 90
+                height: 60
                 text: "Back"
                 active: controller.view !== "setup" && controller.view !== "libraries"
                 onClicked: controller.back()
@@ -83,17 +93,9 @@ Window {
             ActionButton {
                 width: 110
                 height: 60
-                text: "Offline"
-                active: controller.view !== "setup" && controller.view !== "offline" && controller.view !== "reader" && controller.view !== "accounts"
-                onClicked: controller.openOffline()
-            }
-
-            ActionButton {
-                width: 140
-                height: 60
-                text: "In progress"
-                active: controller.view === "libraries"
-                onClicked: controller.openInProgress()
+                text: "Refresh"
+                active: controller.view !== "setup" && controller.view !== "reader" && controller.view !== "accounts"
+                onClicked: controller.refresh()
             }
 
             ActionButton {
@@ -102,14 +104,6 @@ Window {
                 text: "Accounts"
                 active: controller.view !== "accounts"
                 onClicked: controller.openAccounts()
-            }
-
-            ActionButton {
-                width: 100
-                height: 60
-                text: "Refresh"
-                active: controller.view !== "setup" && controller.view !== "reader" && controller.view !== "accounts"
-                onClicked: controller.refresh()
             }
 
             ActionButton {
@@ -296,44 +290,105 @@ Window {
             }
         }
 
-        ListView {
-            id: librariesList
+        Item {
             anchors.fill: parent
             anchors.margins: 24
-            visible: controller.view === "libraries" || controller.view === "series" || controller.view === "books" || controller.view === "inProgress" || controller.view === "offline"
-            clip: true
-            spacing: 14
-            model: controller.view === "libraries" ? controller.libraryModel
-                                                   : controller.view === "series" ? controller.seriesModel
-                                                                                  : controller.view === "offline" ? controller.offlineModel
-                                                                                                                   : controller.bookModel
+            visible: controller.view === "libraries" || controller.view === "series" || controller.view === "books" || controller.view === "inProgress" || controller.view === "offline" || controller.view === "recent" || controller.view === "onDeck"
 
-            delegate: ListRow {
-                width: librariesList.width
-                itemId: model.itemId
-                title: model.title
-                subtitle: model.subtitle
-                meta: model.meta
-                badge: model.badge
-                downloaded: model.downloaded
-                showDelete: controller.view === "offline"
-                onClicked: {
-                    const id = model.itemId
-                    controller.noteRowTap(id, index)
-                    if (controller.view === "libraries") {
-                        if (id !== "") controller.openLibraryId(id)
-                        else controller.openLibrary(index)
-                    } else if (controller.view === "series") {
-                        if (id !== "") controller.openSeriesId(id)
-                        else controller.openSeries(index)
-                    } else if (controller.view === "offline") {
-                        if (id !== "") controller.openOfflineBookId(id)
-                    } else {
-                        if (id !== "") controller.openBookId(id)
-                        else controller.openBook(index)
-                    }
+            Row {
+                id: homeSections
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                visible: controller.view === "libraries"
+                height: 64
+                spacing: 12
+
+                ActionButton {
+                    width: 160
+                    height: 64
+                    text: "In progress"
+                    onClicked: controller.openInProgress()
                 }
-                onDeleteClicked: controller.deleteOfflineBook(model.itemId)
+
+                ActionButton {
+                    width: 160
+                    height: 64
+                    text: "Offline"
+                    onClicked: controller.openOffline()
+                }
+
+                ActionButton {
+                    width: 160
+                    height: 64
+                    text: "Recent"
+                    onClicked: controller.openRecent()
+                }
+
+                ActionButton {
+                    width: 160
+                    height: 64
+                    text: "On deck"
+                    onClicked: controller.openOnDeck()
+                }
+            }
+
+            FilterBar {
+                id: listFilter
+                anchors.top: homeSections.visible ? homeSections.bottom : parent.top
+                anchors.topMargin: homeSections.visible ? 14 : 0
+                anchors.left: parent.left
+                anchors.right: parent.right
+                externalText: controller.filterText
+            }
+
+            ListView {
+                id: librariesList
+                anchors.top: listFilter.bottom
+                anchors.topMargin: 14
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                clip: true
+                spacing: 14
+                model: controller.view === "libraries" ? controller.libraryModel
+                                                       : controller.view === "series" ? controller.seriesModel
+                                                                                      : controller.view === "offline" ? controller.offlineModel
+                                                                                                                       : controller.view === "recent" ? controller.newSeriesModel
+                                                                                                                                                      : controller.view === "onDeck" ? controller.onDeckModel
+                                                                                                                                                                                     : controller.bookModel
+
+                delegate: ListRow {
+                    width: librariesList.width
+                    itemId: model.itemId
+                    title: model.title
+                    subtitle: model.subtitle
+                    meta: model.meta
+                    badge: model.badge
+                    downloaded: model.downloaded
+                    showDelete: controller.view === "offline"
+                    onClicked: {
+                        const id = model.itemId
+                        controller.noteRowTap(id, index)
+                        if (controller.view === "libraries") {
+                            if (id !== "") controller.openLibraryId(id)
+                            else controller.openLibrary(index)
+                        } else if (controller.view === "series") {
+                            if (id !== "") controller.openSeriesId(id)
+                            else controller.openSeries(index)
+                        } else if (controller.view === "offline") {
+                            if (id !== "") controller.openOfflineBookId(id)
+                        } else if (controller.view === "recent") {
+                            if (id !== "") controller.openRecentSeriesId(id)
+                        } else if (controller.view === "onDeck") {
+                            if (id !== "") controller.openOnDeckBookId(id)
+                        } else {
+                            if (id !== "") controller.openBookId(id)
+                            else controller.openBook(index)
+                        }
+                    }
+                    onDeleteClicked: controller.deleteOfflineBook(model.itemId)
+                }
             }
         }
 

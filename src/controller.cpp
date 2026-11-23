@@ -37,13 +37,19 @@ AppController::AppController(Settings *settings, KomgaApi *api, BookStore *store
       busy_(false),
       showTrustPrompt_(false),
       inProgressBooks_(false),
-      offlineBook_(false) {
+      offlineBook_(false),
+      recentSeries_(false),
+      onDeckBooks_(false) {
   connect(api_, &KomgaApi::librariesReceived, this,
           [this](int requestId, const QJsonArray &items) { onLibraries(items, requestId); });
   connect(api_, &KomgaApi::seriesReceived, this,
           [this](int requestId, const QJsonArray &items) { onSeries(items, requestId); });
   connect(api_, &KomgaApi::booksReceived, this,
           [this](int requestId, const QJsonArray &items) { onBooks(items, requestId); });
+  connect(api_, &KomgaApi::newSeriesReceived, this,
+          [this](int requestId, const QJsonArray &items) { onNewSeries(items, requestId); });
+  connect(api_, &KomgaApi::onDeckReceived, this,
+          [this](int requestId, const QJsonArray &items) { onOnDeck(items, requestId); });
   connect(api_, &KomgaApi::bookReceived, this,
           [this](int requestId, const QJsonObject &book) { onBook(book, requestId); });
   connect(api_, &KomgaApi::pagesReceived, this,
@@ -98,6 +104,32 @@ ListModel *AppController::bookModel() {
 
 ListModel *AppController::offlineModel() {
   return &offlineModel_;
+}
+
+ListModel *AppController::newSeriesModel() {
+  return &newSeriesModel_;
+}
+
+ListModel *AppController::onDeckModel() {
+  return &onDeckModel_;
+}
+
+QString AppController::filterText() const {
+  return filterText_;
+}
+
+void AppController::setFilterText(const QString &text) {
+  if (filterText_ == text.trimmed()) {
+    return;
+  }
+  filterText_ = text.trimmed();
+  libraryModel_.setFilter(filterText_);
+  seriesModel_.setFilter(filterText_);
+  bookModel_.setFilter(filterText_);
+  offlineModel_.setFilter(filterText_);
+  newSeriesModel_.setFilter(filterText_);
+  onDeckModel_.setFilter(filterText_);
+  emit stateChanged();
 }
 
 QString AppController::view() const {
@@ -235,6 +267,12 @@ void AppController::refresh() {
   if (view_ == QStringLiteral("inProgress")) {
     requestId = api_->fetchInProgressBooks();
     pending_.insert(requestId, {QStringLiteral("books"), QString(), 0});
+  } else if (view_ == QStringLiteral("recent")) {
+    requestId = api_->fetchNewSeries();
+    pending_.insert(requestId, {QStringLiteral("newSeries"), QString(), 0});
+  } else if (view_ == QStringLiteral("onDeck")) {
+    requestId = api_->fetchOnDeck();
+    pending_.insert(requestId, {QStringLiteral("onDeck"), QString(), 0});
   } else if (view_ == QStringLiteral("series") && !currentLibraryId_.isEmpty()) {
     requestId = api_->fetchSeries(currentLibraryId_);
     pending_.insert(requestId, {QStringLiteral("series"), currentLibraryId_, 0});
@@ -280,6 +318,9 @@ void AppController::openSeries(int row) {
   }
   currentSeriesId_ = item.id;
   inProgressBooks_ = false;
+  recentSeries_ = false;
+  onDeckBooks_ = false;
+  offlineBook_ = false;
   selectedTitle_ = item.title;
   selectedMeta_ = item.subtitle;
   bookModel_.clear();
@@ -305,6 +346,7 @@ void AppController::openBook(int row) {
   currentBookId_ = item.id;
   currentBookTitle_ = item.title;
   offlineBook_ = false;
+  onDeckBooks_ = false;
   selectedTitle_ = item.title;
   selectedMeta_ = item.subtitle;
   pageCount_ = item.pageCount;
@@ -332,12 +374,114 @@ void AppController::openInProgress() {
   currentBookId_.clear();
   pageSource_.clear();
   inProgressBooks_ = true;
+  recentSeries_ = false;
+  onDeckBooks_ = false;
+  offlineBook_ = false;
   selectedTitle_ = QStringLiteral("In progress");
   selectedMeta_.clear();
   setView(QStringLiteral("inProgress"));
   const int requestId = api_->fetchInProgressBooks();
   pending_.insert(requestId, {QStringLiteral("books"), QString(), 0});
   setStatus(QStringLiteral("Loading in-progress books..."));
+  emit stateChanged();
+}
+
+void AppController::goHome() {
+  currentBookId_.clear();
+  pageSource_.clear();
+  inProgressBooks_ = false;
+  recentSeries_ = false;
+  onDeckBooks_ = false;
+  offlineBook_ = false;
+  selectedTitle_.clear();
+  selectedMeta_.clear();
+  setView(QStringLiteral("libraries"));
+  const int requestId = api_->fetchLibraries();
+  pending_.insert(requestId, {QStringLiteral("libraries"), QString(), 0});
+  setStatus(QStringLiteral("Loading libraries..."));
+  emit stateChanged();
+}
+
+void AppController::openRecent() {
+  currentBookId_.clear();
+  pageSource_.clear();
+  inProgressBooks_ = false;
+  recentSeries_ = true;
+  onDeckBooks_ = false;
+  offlineBook_ = false;
+  selectedTitle_ = QStringLiteral("Recently added series");
+  selectedMeta_.clear();
+  setView(QStringLiteral("recent"));
+  const int requestId = api_->fetchNewSeries();
+  pending_.insert(requestId, {QStringLiteral("newSeries"), QString(), 0});
+  setStatus(QStringLiteral("Loading recently added series..."));
+  emit stateChanged();
+}
+
+void AppController::openOnDeck() {
+  currentBookId_.clear();
+  pageSource_.clear();
+  inProgressBooks_ = false;
+  recentSeries_ = false;
+  onDeckBooks_ = true;
+  offlineBook_ = false;
+  bookModel_.clear();
+  onDeckModel_.clear();
+  selectedTitle_ = QStringLiteral("On deck");
+  selectedMeta_.clear();
+  setView(QStringLiteral("onDeck"));
+  const int requestId = api_->fetchOnDeck();
+  pending_.insert(requestId, {QStringLiteral("onDeck"), QString(), 0});
+  setStatus(QStringLiteral("Loading on-deck books..."));
+  emit stateChanged();
+}
+
+void AppController::openRecentSeriesId(const QString &id) {
+  const int row = newSeriesModel_.indexOfId(id);
+  if (row < 0) {
+    setStatus(QStringLiteral("Series not found"));
+    return;
+  }
+  recentSeries_ = true;
+  const ListItem item = newSeriesModel_.itemAt(row);
+  currentSeriesId_ = item.id;
+  currentLibraryId_.clear();
+  inProgressBooks_ = false;
+  onDeckBooks_ = false;
+  offlineBook_ = false;
+  selectedTitle_ = item.title;
+  selectedMeta_ = item.subtitle;
+  bookModel_.clear();
+  setView(QStringLiteral("books"));
+  const int requestId = api_->fetchBooks(item.id);
+  pending_.insert(requestId, {QStringLiteral("books"), item.id, 0});
+  setStatus(QStringLiteral("Loading books..."));
+  emit stateChanged();
+}
+
+void AppController::openOnDeckBookId(const QString &id) {
+  const int row = onDeckModel_.indexOfId(id);
+  if (row < 0) {
+    setStatus(QStringLiteral("Book not found"));
+    return;
+  }
+  onDeckBooks_ = true;
+  const ListItem item = onDeckModel_.itemAt(row);
+  currentBookId_ = item.id;
+  currentBookTitle_ = item.title;
+  offlineBook_ = false;
+  selectedTitle_ = item.title;
+  selectedMeta_ = item.subtitle;
+  pageCount_ = item.pageCount;
+  downloadTotal_ = store_->pageCount(item.id);
+  downloadedCount_ = store_->downloadedCount(item.id);
+  const bool downloaded = store_->isDownloaded(item.id);
+  const int storedPage = store_->localPage(item.id);
+  const int serverPage = item.page > 0 ? item.page : 1;
+  updatePage(downloaded && storedPage > 0 ? storedPage : serverPage);
+  setView(QStringLiteral("reader"));
+  setStatus(downloaded ? QStringLiteral("Ready to read")
+                       : QStringLiteral("Download this book to read offline"));
   emit stateChanged();
 }
 
@@ -463,15 +607,33 @@ void AppController::noteRowTap(const QString &id, int row) {
 
 void AppController::back() {
   if (view_ == QStringLiteral("reader")) {
-    setView(offlineBook_ ? QStringLiteral("offline") : QStringLiteral("books"));
+    if (offlineBook_) {
+      setView(QStringLiteral("offline"));
+    } else if (onDeckBooks_) {
+      setView(QStringLiteral("onDeck"));
+    } else {
+      setView(QStringLiteral("books"));
+    }
     pageSource_.clear();
   } else if (view_ == QStringLiteral("books")) {
-    setView(inProgressBooks_ ? QStringLiteral("inProgress") : QStringLiteral("series"));
+    if (inProgressBooks_) {
+      setView(QStringLiteral("inProgress"));
+    } else if (onDeckBooks_) {
+      setView(QStringLiteral("onDeck"));
+    } else if (recentSeries_) {
+      setView(QStringLiteral("recent"));
+    } else {
+      setView(QStringLiteral("series"));
+    }
   } else if (view_ == QStringLiteral("inProgress")) {
     setView(QStringLiteral("libraries"));
   } else if (view_ == QStringLiteral("offline")) {
     setView(QStringLiteral("libraries"));
   } else if (view_ == QStringLiteral("accounts")) {
+    setView(QStringLiteral("libraries"));
+  } else if (view_ == QStringLiteral("recent")) {
+    setView(QStringLiteral("libraries"));
+  } else if (view_ == QStringLiteral("onDeck")) {
     setView(QStringLiteral("libraries"));
   } else if (view_ == QStringLiteral("series")) {
     setView(QStringLiteral("libraries"));
@@ -555,6 +717,16 @@ void AppController::onSeries(const QJsonArray &items, int requestId) {
 void AppController::onBooks(const QJsonArray &items, int requestId) {
   pending_.remove(requestId);
   populateBooks(items);
+}
+
+void AppController::onNewSeries(const QJsonArray &items, int requestId) {
+  pending_.remove(requestId);
+  populateNewSeries(items);
+}
+
+void AppController::onOnDeck(const QJsonArray &items, int requestId) {
+  pending_.remove(requestId);
+  populateOnDeck(items);
 }
 
 void AppController::onBook(const QJsonObject &book, int requestId) {
@@ -759,6 +931,15 @@ void AppController::resetForAccount() {
   seriesModel_.clear();
   bookModel_.clear();
   offlineModel_.clear();
+  newSeriesModel_.clear();
+  onDeckModel_.clear();
+  filterText_.clear();
+  libraryModel_.setFilter(QString());
+  seriesModel_.setFilter(QString());
+  bookModel_.setFilter(QString());
+  offlineModel_.setFilter(QString());
+  newSeriesModel_.setFilter(QString());
+  onDeckModel_.setFilter(QString());
   currentLibraryId_.clear();
   currentSeriesId_.clear();
   currentBookId_.clear();
@@ -773,6 +954,8 @@ void AppController::resetForAccount() {
   showTrustPrompt_ = false;
   inProgressBooks_ = false;
   offlineBook_ = false;
+  recentSeries_ = false;
+  onDeckBooks_ = false;
   selectedTitle_.clear();
   selectedMeta_.clear();
 
@@ -855,6 +1038,56 @@ void AppController::populateBooks(const QJsonArray &items) {
   }
   refreshBooksModel();
   setStatus(QStringLiteral("Books loaded"));
+  emit stateChanged();
+}
+
+void AppController::populateNewSeries(const QJsonArray &items) {
+  QVector<ListItem> rows;
+  rows.reserve(items.size());
+  for (const QJsonValue &value : items) {
+    const QJsonObject object = value.toObject();
+    ListItem item;
+    item.id = object.value(QStringLiteral("id")).toString();
+    item.title = seriesTitle(object);
+    item.subtitle = object.value(QStringLiteral("name")).toString();
+    item.meta = seriesMeta(object);
+    item.badge = object.value(QStringLiteral("booksUnreadCount")).toInt() > 0
+                     ? QStringLiteral("UNREAD")
+                     : QString();
+    rows.append(item);
+  }
+  newSeriesModel_.setItems(rows);
+  setStatus(QStringLiteral("Recently added series loaded"));
+  emit stateChanged();
+}
+
+void AppController::populateOnDeck(const QJsonArray &items) {
+  QVector<ListItem> rows;
+  rows.reserve(items.size());
+  for (const QJsonValue &value : items) {
+    const QJsonObject object = value.toObject();
+    const QString id = object.value(QStringLiteral("id")).toString();
+    ListItem item;
+    item.id = id;
+    item.title = bookTitle(object);
+    item.subtitle = object.value(QStringLiteral("seriesTitle")).toString();
+    item.meta = bookMeta(object);
+    item.downloaded = store_->isDownloaded(id);
+    item.pageCount = object.value(QStringLiteral("media"))
+                         .toObject()
+                         .value(QStringLiteral("pagesCount"))
+                         .toInt();
+    const QJsonObject progress = object.value(QStringLiteral("readProgress")).toObject();
+    item.page = progress.value(QStringLiteral("page")).toInt();
+    if (progress.value(QStringLiteral("completed")).toBool()) {
+      item.page = item.pageCount;
+    }
+    item.badge = item.downloaded ? QStringLiteral("OFFLINE")
+                                 : (item.page > 0 ? QStringLiteral("READ") : QString());
+    rows.append(item);
+  }
+  onDeckModel_.setItems(rows);
+  setStatus(QStringLiteral("On-deck books loaded"));
   emit stateChanged();
 }
 
