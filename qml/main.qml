@@ -57,7 +57,7 @@ Window {
             anchors.left: parent.left
             anchors.leftMargin: 24
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - 720
+            width: parent.width - 780
             text: root.headerTitle
             font.pixelSize: 34
             font.bold: true
@@ -72,7 +72,7 @@ Window {
             spacing: 10
 
             ActionButton {
-                width: 110
+                width: 100
                 height: 60
                 text: "Back"
                 active: controller.view !== "setup" && controller.view !== "libraries"
@@ -80,7 +80,7 @@ Window {
             }
 
             ActionButton {
-                width: 130
+                width: 120
                 height: 60
                 text: "Offline"
                 active: controller.view !== "setup" && controller.view !== "offline" && controller.view !== "reader"
@@ -88,7 +88,7 @@ Window {
             }
 
             ActionButton {
-                width: 150
+                width: 140
                 height: 60
                 text: "In progress"
                 active: controller.view === "libraries"
@@ -96,7 +96,7 @@ Window {
             }
 
             ActionButton {
-                width: 120
+                width: 110
                 height: 60
                 text: "Refresh"
                 active: controller.view !== "setup" && controller.view !== "reader"
@@ -104,7 +104,14 @@ Window {
             }
 
             ActionButton {
-                width: 110
+                width: 100
+                height: 60
+                text: appSettings.hideStatusBar ? "Bar:off" : "Bar:on"
+                onClicked: controller.toggleStatusBar()
+            }
+
+            ActionButton {
+                width: 100
                 height: 60
                 text: "Exit"
                 onClicked: controller.exit()
@@ -349,13 +356,6 @@ Window {
                     height: 64
                     text: appSettings.grayscale ? "Gray" : "Color"
                     onClicked: controller.toggleGrayscale()
-                }
-
-                ActionButton {
-                    width: 110
-                    height: 64
-                    text: appSettings.hideStatusBar ? "Bar:off" : "Bar:on"
-                    onClicked: controller.toggleStatusBar()
                 }
 
                 ActionButton {
