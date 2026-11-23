@@ -55,6 +55,24 @@ void ListModel::setItems(const QVector<ListItem> &items) {
   emit countChanged();
 }
 
+void ListModel::markDownloaded(const QString &id, bool downloaded) {
+  for (int row = 0; row < visible_.size(); ++row) {
+    const int itemIndex = visible_.at(row);
+    if (items_.at(itemIndex).id != id) {
+      continue;
+    }
+    items_[itemIndex].downloaded = downloaded;
+    if (downloaded) {
+      items_[itemIndex].badge = QStringLiteral("OFFLINE");
+    } else if (items_[itemIndex].badge == QStringLiteral("OFFLINE")) {
+      items_[itemIndex].badge = items_[itemIndex].page > 0 ? QStringLiteral("READ") : QString();
+    }
+    const QModelIndex modelIndex = index(row);
+    emit dataChanged(modelIndex, modelIndex, {DownloadedRole, BadgeRole});
+    return;
+  }
+}
+
 void ListModel::clear() {
   setItems({});
 }

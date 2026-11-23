@@ -49,6 +49,7 @@ class ListModel : public QAbstractListModel {
   QHash<int, QByteArray> roleNames() const override;
 
   void setItems(const QVector<ListItem> &items);
+  void markDownloaded(const QString &id, bool downloaded);
   void clear();
   QString filter() const;
   void setFilter(const QString &filter);

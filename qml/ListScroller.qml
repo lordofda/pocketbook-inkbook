@@ -13,10 +13,16 @@ Item {
         if (!view || view.count === 0) {
             return
         }
-        const next = view.currentIndex < 0 ? 0
-                                            : Math.max(0, Math.min(view.count - 1, view.currentIndex + delta))
+        let index = view.indexAt(view.contentX, view.contentY + 1)
+        if (index < 0) {
+            index = view.indexAt(view.contentX, view.contentY + view.height / 2)
+        }
+        if (index < 0) {
+            index = 0
+        }
+        const next = Math.max(0, Math.min(view.count - 1, index + delta))
         view.currentIndex = next
-        view.positionViewAtIndex(next, ListView.Contain)
+        view.positionViewAtIndex(next, ListView.Beginning)
     }
 
     function setFraction(fraction) {

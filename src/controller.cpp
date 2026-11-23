@@ -982,7 +982,8 @@ void AppController::onDownloadFinished(bool ok, const QString &message, int requ
   if (currentBookId_ == downloadBookId_) {
     updatePage(currentPage_);
   }
-  refreshBooksModel();
+  bookModel_.markDownloaded(downloadBookId_, true);
+  onDeckModel_.markDownloaded(downloadBookId_, true);
   startNextDownload();
   emit stateChanged();
 }
