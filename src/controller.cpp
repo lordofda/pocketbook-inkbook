@@ -595,7 +595,7 @@ void AppController::editAccount(const QString &id) {
     setStatus(QStringLiteral("Could not open account"));
     return;
   }
-  resetForAccount();
+  resetForAccount(true);
   setStatus(QStringLiteral("Edit account details"));
   emit stateChanged();
 }
@@ -1054,7 +1054,7 @@ void AppController::setStatus(const QString &status) {
   emit stateChanged();
 }
 
-void AppController::resetForAccount() {
+void AppController::resetForAccount(bool stayInSetup) {
   syncTimer_.stop();
   clearDownloads();
   pending_.clear();
@@ -1095,6 +1095,12 @@ void AppController::resetForAccount() {
   onDeckBooks_ = false;
   selectedTitle_.clear();
   selectedMeta_.clear();
+
+  if (stayInSetup) {
+    setView(QStringLiteral("setup"));
+    emit stateChanged();
+    return;
+  }
 
   const bool needsTrust =
       settings_->serverUrl().startsWith(QStringLiteral("https"), Qt::CaseInsensitive) &&

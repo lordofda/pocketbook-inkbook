@@ -147,7 +147,7 @@ class AppController : public QObject {
  private:
   void setView(const QString &view);
   void setStatus(const QString &status);
-  void resetForAccount();
+  void resetForAccount(bool stayInSetup = false);
   void finishConnection();
   void populateLibraries(const QJsonArray &items);
   void populateSeries(const QJsonArray &items);
