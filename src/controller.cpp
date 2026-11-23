@@ -777,6 +777,8 @@ void AppController::downloadBookId(const QString &id) {
   }
   currentBookId_ = id;
   currentBookTitle_ = item.title;
+  currentPage_ = 1;
+  pageSource_.clear();
   if (!item.seriesId.isEmpty()) {
     currentSeriesId_ = item.seriesId;
   }
@@ -979,7 +981,7 @@ void AppController::onDownloadFinished(bool ok, const QString &message, int requ
 
   ++downloadedCount_;
   ++downloadQueueIndex_;
-  if (currentBookId_ == downloadBookId_) {
+  if (currentBookId_ == downloadBookId_ && view_ == QStringLiteral("reader") && !offlineBook_) {
     updatePage(currentPage_);
   }
   bookModel_.markDownloaded(downloadBookId_, true);
@@ -1452,7 +1454,8 @@ void AppController::startNextDownload() {
   if (downloadQueueIndex_ >= downloadQueue_.size()) {
     activeDownloadId_ = 0;
     setStatus(QStringLiteral("Book downloaded · %1 pages").arg(downloadTotal_));
-    refreshBooksModel();
+    bookModel_.markDownloaded(downloadBookId_, true);
+    onDeckModel_.markDownloaded(downloadBookId_, true);
     emit stateChanged();
     return;
   }
