@@ -2,6 +2,8 @@
 
 #include <inkview.h>
 
+#include <QGuiApplication>
+
 namespace {
 
 int positiveOr(int value, int fallback) {
@@ -53,4 +55,10 @@ QString DeviceInfo::firmware() const {
 
 QString DeviceInfo::fontFamily() const {
   return inkViewFontFamily();
+}
+
+void DeviceInfo::hideKeyboard() {
+  if (QGuiApplication::inputMethod() != nullptr) {
+    QGuiApplication::inputMethod()->hide();
+  }
 }

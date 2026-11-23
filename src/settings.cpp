@@ -22,6 +22,7 @@ constexpr const char *kPemKey = "server/certPem";
 constexpr const char *kGrayscaleKey = "reader/grayscale";
 constexpr const char *kHideStatusBarKey = "reader/hideStatusBar";
 constexpr const char *kActiveAccountKey = "general/activeAccount";
+constexpr const char *kDefaultAccountKey = "general/defaultAccount";
 constexpr const char *kAccountsRoot = "accounts";
 
 QString defaultCacheRoot() {
@@ -73,9 +74,12 @@ void Settings::ensureAccounts() {
     ids.append(id);
   }
   const QString active = settings_.value(QString::fromLatin1(kActiveAccountKey)).toString();
-  if (!ids.contains(active)) {
-    settings_.setValue(QString::fromLatin1(kActiveAccountKey), ids.first());
+  QString defaultId = settings_.value(QString::fromLatin1(kDefaultAccountKey)).toString();
+  if (!ids.contains(defaultId)) {
+    defaultId = ids.contains(active) ? active : ids.first();
   }
+  settings_.setValue(QString::fromLatin1(kDefaultAccountKey), defaultId);
+  settings_.setValue(QString::fromLatin1(kActiveAccountKey), defaultId);
   persist();
 }
 
@@ -204,6 +208,7 @@ QVariantList Settings::accounts() const {
     row.insert(QStringLiteral("trusted"),
                !accountValue(QStringLiteral("fingerprint"), id).isEmpty());
     row.insert(QStringLiteral("active"), id == active);
+    row.insert(QStringLiteral("isDefault"), id == defaultAccountId());
     result.append(row);
   }
   return result;
@@ -217,6 +222,17 @@ QString Settings::activeAccountId() const {
 QString Settings::activeAccountName() const {
   const QString name = accountValue(QStringLiteral("name"));
   return name.isEmpty() ? activeAccountId() : name;
+}
+
+QString Settings::defaultAccountId() const {
+  const QString id = settings_.value(QString::fromLatin1(kDefaultAccountKey)).toString();
+  return id.isEmpty() ? activeAccountId() : id;
+}
+
+QString Settings::defaultAccountName() const {
+  const QString id = defaultAccountId();
+  const QString name = accountValue(QStringLiteral("name"), id);
+  return name.isEmpty() ? id : name;
 }
 
 QString Settings::bookCacheRoot() const {
@@ -367,16 +383,31 @@ bool Settings::switchAccount(const QString &id) {
   return true;
 }
 
+bool Settings::setDefaultAccount(const QString &id) {
+  if (id.isEmpty() || !accountIds().contains(id)) {
+    return false;
+  }
+  settings_.setValue(QString::fromLatin1(kDefaultAccountKey), id);
+  persist();
+  emit configurationChanged();
+  return true;
+}
+
 bool Settings::removeAccount(const QString &id) {
   const QStringList ids = accountIds();
   if (id.isEmpty() || !ids.contains(id) || ids.size() <= 1) {
     return false;
   }
+  const QString active = activeAccountId();
+  const QString defaultId = defaultAccountId();
   settings_.remove(accountGroupPath(id));
-  if (activeAccountId() == id) {
-    QStringList remaining = accountIds();
-    settings_.setValue(QString::fromLatin1(kActiveAccountKey),
-                       remaining.isEmpty() ? QString() : remaining.first());
+  const QStringList remaining = accountIds();
+  const QString replacement = remaining.isEmpty() ? QString() : remaining.first();
+  if (active == id) {
+    settings_.setValue(QString::fromLatin1(kActiveAccountKey), replacement);
+  }
+  if (defaultId == id) {
+    settings_.setValue(QString::fromLatin1(kDefaultAccountKey), replacement);
   }
   persist();
   emit configurationChanged();

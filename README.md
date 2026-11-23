@@ -14,7 +14,9 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 - Multiple Komga accounts: add, edit, switch, and delete from the **Accounts** top menu; each account has its own URL, API key, TLS pin, and book cache.
 - Library, series, books, and in-progress browsing from the Home sections.
 - Recently added series and on-deck books, using Komga's `/api/v1/series/new` and `/api/v1/books/ondeck` views.
-- Search and A–Z title filtering on every list view.
+- Search and A–Z title filtering on every list view, with a Done button to dismiss the on-screen keyboard.
+- Finishing a book marks it complete in Komga and offers the next book in the series when available.
+- Open series action on book rows and in the reader for downloading more of a series.
 - Whole-book offline downloads with local grayscale conversion.
 - Offline books browser: open downloaded books without a server, delete local copies, and see cached size/count.
 - Progress sync:

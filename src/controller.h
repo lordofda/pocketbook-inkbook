@@ -46,6 +46,10 @@ class AppController : public QObject {
   Q_PROPERTY(int downloadTotal READ downloadTotal NOTIFY stateChanged)
   Q_PROPERTY(bool currentBookDownloaded READ currentBookDownloaded NOTIFY stateChanged)
   Q_PROPERTY(bool grayscale READ grayscale NOTIFY stateChanged)
+  Q_PROPERTY(QString currentSeriesId READ currentSeriesId NOTIFY stateChanged)
+  Q_PROPERTY(bool bookCompleted READ bookCompleted NOTIFY stateChanged)
+  Q_PROPERTY(QString nextBookId READ nextBookId NOTIFY stateChanged)
+  Q_PROPERTY(QString nextBookTitle READ nextBookTitle NOTIFY stateChanged)
 
  public:
   explicit AppController(Settings *settings, KomgaApi *api, BookStore *store,
@@ -75,6 +79,10 @@ class AppController : public QObject {
   int downloadTotal() const;
   bool currentBookDownloaded() const;
   bool grayscale() const;
+  QString currentSeriesId() const;
+  bool bookCompleted() const;
+  QString nextBookId() const;
+  QString nextBookTitle() const;
 
   Q_INVOKABLE void configure(const QString &url, const QString &key, const QString &name);
   Q_INVOKABLE void trustDiscoveredCertificate();
@@ -86,6 +94,9 @@ class AppController : public QObject {
   Q_INVOKABLE void openSeriesId(const QString &id);
   Q_INVOKABLE void openBook(int row);
   Q_INVOKABLE void openBookId(const QString &id);
+  Q_INVOKABLE void openSeriesForBookId(const QString &seriesId);
+  Q_INVOKABLE void openCurrentSeries();
+  Q_INVOKABLE void openNextBook();
   Q_INVOKABLE void openInProgress();
   Q_INVOKABLE void goHome();
   Q_INVOKABLE void openRecent();
@@ -95,6 +106,7 @@ class AppController : public QObject {
   Q_INVOKABLE void openAccounts();
   Q_INVOKABLE void newAccount();
   Q_INVOKABLE void switchAccount(const QString &id);
+  Q_INVOKABLE void setDefaultAccount(const QString &id);
   Q_INVOKABLE void editAccount(const QString &id);
   Q_INVOKABLE void deleteAccount(const QString &id);
   Q_INVOKABLE void openOffline();
@@ -106,6 +118,7 @@ class AppController : public QObject {
   Q_INVOKABLE void noteRowTap(const QString &id, int row);
   Q_INVOKABLE void back();
   Q_INVOKABLE void downloadCurrentBook();
+  Q_INVOKABLE void downloadBookId(const QString &id);
   Q_INVOKABLE void nextPage();
   Q_INVOKABLE void previousPage();
   Q_INVOKABLE void setPage(int page);
@@ -143,6 +156,10 @@ class AppController : public QObject {
   void populateOnDeck(const QJsonArray &items);
   void populateOfflineBooks();
   void refreshBooksModel();
+  void openBookDetails(const QString &id, const QString &title, const QString &seriesTitle,
+                       const QString &seriesId, int page, int pageCount);
+  void refreshNextBook();
+  double bookSortNumber(const QJsonObject &object) const;
   void beginProgressSync(bool manual);
   void updatePage(int page);
   void scheduleProgressSync();
@@ -177,6 +194,8 @@ class AppController : public QObject {
   QString selectedMeta_;
   QString currentLibraryId_;
   QString currentSeriesId_;
+  QString nextBookId_;
+  QString nextBookTitle_;
   QString currentBookId_;
   QString currentBookTitle_;
   QString pageSource_;
@@ -194,4 +213,5 @@ class AppController : public QObject {
   bool offlineBook_;
   bool recentSeries_;
   bool onDeckBooks_;
+  bool bookCompleted_;
 };

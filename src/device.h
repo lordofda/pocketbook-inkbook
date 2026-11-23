@@ -32,7 +32,8 @@ class DeviceInfo : public QObject {
   QString model() const;
   QString firmware() const;
   QString fontFamily() const;
+  Q_INVOKABLE void hideKeyboard();
 
- private:
+  private:
   ScreenSize screen_;
 };

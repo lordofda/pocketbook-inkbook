@@ -5,10 +5,26 @@ Item {
 
     property alias text: input.text
     property string externalText: ""
+    property string lastView: controller.view
+
+    function hideKeyboard() {
+        input.focus = false
+        deviceInfo.hideKeyboard()
+    }
 
     onExternalTextChanged: {
         if (input.text !== externalText) {
             input.text = externalText
+        }
+    }
+
+    Connections {
+        target: controller
+        function onStateChanged() {
+            if (controller.view !== bar.lastView) {
+                bar.lastView = controller.view
+                bar.hideKeyboard()
+            }
         }
     }
 
@@ -27,12 +43,20 @@ Item {
 
         TextInput {
             id: input
-            anchors.fill: parent
-            anchors.margins: 12
+            anchors.left: parent.left
+            anchors.right: hideButton.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: 12
+            anchors.rightMargin: 8
+            anchors.topMargin: 8
+            anchors.bottomMargin: 8
             font.pixelSize: 26
             color: "#111111"
             selectByMouse: true
             onTextChanged: controller.setFilterText(input.text)
+            onAccepted: bar.hideKeyboard()
+            Keys.onEscapePressed: bar.hideKeyboard()
         }
 
         Text {
@@ -41,6 +65,31 @@ Item {
             font.pixelSize: input.font.pixelSize
             color: "#888888"
             visible: input.text.length === 0
+        }
+
+        Rectangle {
+            id: hideButton
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            width: 84
+            height: 44
+            color: "#e6e6e6"
+            border.color: "#888888"
+            border.width: 1
+            radius: 4
+
+            Text {
+                anchors.centerIn: parent
+                text: "Done"
+                font.pixelSize: 22
+                color: "#222222"
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: bar.hideKeyboard()
+            }
         }
     }
 
@@ -76,6 +125,7 @@ Item {
                     onClicked: {
                         input.text = modelData === "All" ? "" : modelData
                         controller.setFilterText(input.text)
+                        bar.hideKeyboard()
                     }
                 }
             }

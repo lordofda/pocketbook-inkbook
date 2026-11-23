@@ -5,6 +5,7 @@
 
 struct ListItem {
   QString id;
+  QString seriesId;
   QString title;
   QString subtitle;
   QString meta;
@@ -37,7 +38,8 @@ class ListModel : public QAbstractListModel {
     BadgeRole,
     PageRole,
     PageCountRole,
-    DownloadedRole
+    DownloadedRole,
+    SeriesIdRole
   };
 
   explicit ListModel(QObject *parent = nullptr);

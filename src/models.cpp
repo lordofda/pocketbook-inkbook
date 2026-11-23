@@ -14,6 +14,8 @@ QVariant ListModel::data(const QModelIndex &index, int role) const {
   switch (role) {
     case IdRole:
       return item.id;
+    case SeriesIdRole:
+      return item.seriesId;
     case TitleRole:
       return item.title;
     case SubtitleRole:
@@ -35,6 +37,7 @@ QVariant ListModel::data(const QModelIndex &index, int role) const {
 
 QHash<int, QByteArray> ListModel::roleNames() const {
   return {{IdRole, "itemId"},
+          {SeriesIdRole, "seriesId"},
           {TitleRole, "title"},
           {SubtitleRole, "subtitle"},
           {MetaRole, "meta"},

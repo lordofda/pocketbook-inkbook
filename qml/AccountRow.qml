@@ -7,6 +7,7 @@ Rectangle {
     property string name: ""
     property string serverUrl: ""
     property bool active: false
+    property bool isDefault: false
     property bool configured: false
 
     signal useClicked()
@@ -49,16 +50,18 @@ Rectangle {
         anchors.leftMargin: 18
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 10
-        text: row.active ? "ACTIVE" : (row.configured ? "READY" : "SETUP NEEDED")
+        text: row.active ? "ACTIVE" : (row.isDefault ? "DEFAULT" : (row.configured ? "READY" : "SETUP NEEDED"))
         font.pixelSize: 19
         font.bold: true
-        color: row.active ? "#006600" : "#777777"
+        color: row.active ? "#006600" : (row.isDefault ? "#114477" : "#777777")
     }
 
     MouseArea {
-        anchors.fill: parent
-        preventStealing: true
-        onPressed: row.useClicked()
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: Math.max(0, parent.width - 340)
+        onClicked: row.useClicked()
     }
 
     Row {

@@ -140,9 +140,11 @@ int KomgaApi::fetchBooks(const QString &seriesId) {
   condition.insert(QStringLiteral("seriesId"), equality);
   QJsonObject body;
   body.insert(QStringLiteral("condition"), condition);
-  return beginRequest(QStringLiteral("books"),
-                      makeRequest(QStringLiteral("/api/v1/books/list?unpaged=true"), true),
-                      QJsonDocument(body).toJson(QJsonDocument::Compact));
+  return beginRequest(
+      QStringLiteral("books"),
+      makeRequest(QStringLiteral("/api/v1/books/list?unpaged=true&sort=metadata.numberSort%2Casc"),
+                  true),
+      QJsonDocument(body).toJson(QJsonDocument::Compact));
 }
 
 int KomgaApi::fetchNewSeries() {

@@ -6,5 +6,6 @@
     <file>AccountRow.qml</file>
     <file>FilterBar.qml</file>
     <file>InputField.qml</file>
+    <file>ListScroller.qml</file>
   </qresource>
 </RCC>

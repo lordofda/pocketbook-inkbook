@@ -9,6 +9,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <algorithm>
+#include <limits>
 
 namespace {
 
@@ -19,6 +20,24 @@ qint64 readDateMs(const QJsonValue &value) {
                            .value(QStringLiteral("readDate"))
                            .toString();
   return QDateTime::fromString(text, Qt::ISODate).toMSecsSinceEpoch();
+}
+
+double extractNumber(const QString &text) {
+  int start = 0;
+  while (start < text.size() && !text.at(start).isDigit()) {
+    ++start;
+  }
+  if (start >= text.size()) {
+    return std::numeric_limits<double>::max();
+  }
+  int end = start;
+  while (end < text.size() &&
+         (text.at(end).isDigit() || text.at(end) == QLatin1Char('.'))) {
+    ++end;
+  }
+  bool ok = false;
+  const double number = text.mid(start, end - start).toDouble(&ok);
+  return ok ? number : std::numeric_limits<double>::max();
 }
 
 }
@@ -39,7 +58,8 @@ AppController::AppController(Settings *settings, KomgaApi *api, BookStore *store
       inProgressBooks_(false),
       offlineBook_(false),
       recentSeries_(false),
-      onDeckBooks_(false) {
+      onDeckBooks_(false),
+      bookCompleted_(false) {
   connect(api_, &KomgaApi::librariesReceived, this,
           [this](int requestId, const QJsonArray &items) { onLibraries(items, requestId); });
   connect(api_, &KomgaApi::seriesReceived, this,
@@ -196,6 +216,22 @@ bool AppController::grayscale() const {
   return settings_->grayscale();
 }
 
+QString AppController::currentSeriesId() const {
+  return currentSeriesId_;
+}
+
+bool AppController::bookCompleted() const {
+  return bookCompleted_;
+}
+
+QString AppController::nextBookId() const {
+  return nextBookId_;
+}
+
+QString AppController::nextBookTitle() const {
+  return nextBookTitle_;
+}
+
 void AppController::configure(const QString &url, const QString &key, const QString &name) {
   if (!settings_->saveConnection(url, key, name)) {
     setStatus(QStringLiteral("Enter a valid HTTPS URL and API key"));
@@ -343,29 +379,75 @@ void AppController::openBook(int row) {
   if (item.id.isEmpty()) {
     return;
   }
-  currentBookId_ = item.id;
-  currentBookTitle_ = item.title;
-  offlineBook_ = false;
-  onDeckBooks_ = false;
-  selectedTitle_ = item.title;
-  selectedMeta_ = item.subtitle;
-  pageCount_ = item.pageCount;
-  downloadTotal_ = store_->pageCount(item.id);
-  downloadedCount_ = store_->downloadedCount(item.id);
-  const bool downloaded = store_->isDownloaded(item.id);
-  const int storedPage = store_->localPage(item.id);
-  const int serverPage = item.page > 0 ? item.page : 1;
-  updatePage(downloaded && storedPage > 0 ? storedPage : serverPage);
-  setView(QStringLiteral("reader"));
-  setStatus(downloaded ? QStringLiteral("Ready to read")
-                       : QStringLiteral("Download this book to read offline"));
-  emit stateChanged();
+  openBookDetails(item.id, item.title, item.subtitle, item.seriesId, item.page, item.pageCount);
 }
 
 void AppController::openBookId(const QString &id) {
   const int row = bookModel_.indexOfId(id);
   if (row >= 0) {
     openBook(row);
+  }
+}
+
+void AppController::openSeriesForBookId(const QString &seriesId) {
+  if (seriesId.isEmpty()) {
+    setStatus(QStringLiteral("Series information unavailable"));
+    return;
+  }
+  currentSeriesId_ = seriesId;
+  currentBookId_.clear();
+  nextBookId_.clear();
+  nextBookTitle_.clear();
+  bookCompleted_ = false;
+  pageSource_.clear();
+  inProgressBooks_ = false;
+  recentSeries_ = false;
+  onDeckBooks_ = false;
+  offlineBook_ = false;
+  selectedTitle_ = QStringLiteral("Series");
+  selectedMeta_.clear();
+  bookModel_.clear();
+  setView(QStringLiteral("books"));
+  const int requestId = api_->fetchBooks(seriesId);
+  pending_.insert(requestId, {QStringLiteral("books"), seriesId, 0});
+  setStatus(QStringLiteral("Loading series..."));
+  emit stateChanged();
+}
+
+void AppController::openCurrentSeries() {
+  openSeriesForBookId(currentSeriesId_);
+}
+
+void AppController::openNextBook() {
+  if (nextBookId_.isEmpty()) {
+    setStatus(QStringLiteral("No next book found"));
+    return;
+  }
+  for (const QJsonValue &value : lastBooks_) {
+    const QJsonObject object = value.toObject();
+    if (object.value(QStringLiteral("id")).toString() != nextBookId_) {
+      continue;
+    }
+    QString seriesId = object.value(QStringLiteral("seriesId")).toString();
+    if (seriesId.isEmpty()) {
+      seriesId = currentSeriesId_;
+    }
+    const QJsonObject media = object.value(QStringLiteral("media")).toObject();
+    const int total = media.value(QStringLiteral("pagesCount")).toInt();
+    const QJsonObject progress = object.value(QStringLiteral("readProgress")).toObject();
+    int page = progress.value(QStringLiteral("page")).toInt();
+    if (progress.value(QStringLiteral("completed")).toBool()) {
+      page = total;
+    }
+    openBookDetails(nextBookId_, bookTitle(object),
+                    object.value(QStringLiteral("seriesTitle")).toString(), seriesId, page, total);
+    return;
+  }
+  const int row = bookModel_.indexOfId(nextBookId_);
+  if (row >= 0) {
+    openBook(row);
+  } else {
+    setStatus(QStringLiteral("Next book is not available in this list"));
   }
 }
 
@@ -465,23 +547,9 @@ void AppController::openOnDeckBookId(const QString &id) {
     setStatus(QStringLiteral("Book not found"));
     return;
   }
-  onDeckBooks_ = true;
   const ListItem item = onDeckModel_.itemAt(row);
-  currentBookId_ = item.id;
-  currentBookTitle_ = item.title;
-  offlineBook_ = false;
-  selectedTitle_ = item.title;
-  selectedMeta_ = item.subtitle;
-  pageCount_ = item.pageCount;
-  downloadTotal_ = store_->pageCount(item.id);
-  downloadedCount_ = store_->downloadedCount(item.id);
-  const bool downloaded = store_->isDownloaded(item.id);
-  const int storedPage = store_->localPage(item.id);
-  const int serverPage = item.page > 0 ? item.page : 1;
-  updatePage(downloaded && storedPage > 0 ? storedPage : serverPage);
-  setView(QStringLiteral("reader"));
-  setStatus(downloaded ? QStringLiteral("Ready to read")
-                       : QStringLiteral("Download this book to read offline"));
+  openBookDetails(item.id, item.title, item.subtitle, item.seriesId, item.page, item.pageCount);
+  onDeckBooks_ = true;
   emit stateChanged();
 }
 
@@ -510,6 +578,15 @@ void AppController::switchAccount(const QString &id) {
   }
   resetForAccount();
   setStatus(QStringLiteral("Switched to %1").arg(settings_->activeAccountName()));
+  emit stateChanged();
+}
+
+void AppController::setDefaultAccount(const QString &id) {
+  if (!settings_->setDefaultAccount(id)) {
+    setStatus(QStringLiteral("Could not set default account"));
+    return;
+  }
+  setStatus(QStringLiteral("Default account set to %1").arg(settings_->defaultAccountName()));
   emit stateChanged();
 }
 
@@ -551,6 +628,9 @@ void AppController::openOfflineBookId(const QString &id) {
   }
   currentBookId_ = manifest.id;
   currentBookTitle_ = manifest.title;
+  currentSeriesId_.clear();
+  nextBookId_.clear();
+  nextBookTitle_.clear();
   offlineBook_ = true;
   selectedTitle_ = manifest.title;
   selectedMeta_ = QStringLiteral("Offline copy");
@@ -650,6 +730,59 @@ void AppController::downloadCurrentBook() {
   const int requestId = api_->fetchPages(currentBookId_);
   pending_.insert(requestId, {QStringLiteral("pages"), currentBookId_, 0});
   emit stateChanged();
+}
+
+void AppController::downloadBookId(const QString &id) {
+  if (id.isEmpty()) {
+    return;
+  }
+  ListItem item;
+  bool found = false;
+  int row = bookModel_.indexOfId(id);
+  if (row >= 0) {
+    item = bookModel_.itemAt(row);
+    found = true;
+  } else {
+    row = onDeckModel_.indexOfId(id);
+    if (row >= 0) {
+      item = onDeckModel_.itemAt(row);
+      found = true;
+    }
+  }
+  if (!found) {
+    for (const QJsonValue &value : lastBooks_) {
+      const QJsonObject object = value.toObject();
+      if (object.value(QStringLiteral("id")).toString() != id) {
+        continue;
+      }
+      item.id = id;
+      item.seriesId = object.value(QStringLiteral("seriesId")).toString();
+      item.title = bookTitle(object);
+      item.subtitle = object.value(QStringLiteral("seriesTitle")).toString();
+      item.pageCount = object.value(QStringLiteral("media"))
+                           .toObject()
+                           .value(QStringLiteral("pagesCount"))
+                           .toInt();
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    setStatus(QStringLiteral("Book not found"));
+    return;
+  }
+  if (store_->isDownloaded(id)) {
+    setStatus(QStringLiteral("Already downloaded"));
+    return;
+  }
+  currentBookId_ = id;
+  currentBookTitle_ = item.title;
+  if (!item.seriesId.isEmpty()) {
+    currentSeriesId_ = item.seriesId;
+  }
+  downloadTotal_ = store_->pageCount(id);
+  downloadedCount_ = store_->downloadedCount(id);
+  downloadCurrentBook();
 }
 
 void AppController::nextPage() {
@@ -755,7 +888,8 @@ void AppController::onBook(const QJsonObject &book, int requestId) {
   }
 
   if (localPage > serverPage) {
-    const int updateId = api_->updateProgress(bookId, localPage);
+    const bool completed = total > 0 && localPage >= total;
+    const int updateId = api_->updateProgress(bookId, localPage, completed);
     pending_.insert(updateId, {QStringLiteral("sync"), bookId, localPage, action.manual});
     setStatus(QStringLiteral("Pushing local progress to server..."));
     emit stateChanged();
@@ -942,9 +1076,12 @@ void AppController::resetForAccount() {
   onDeckModel_.setFilter(QString());
   currentLibraryId_.clear();
   currentSeriesId_.clear();
+  nextBookId_.clear();
+  nextBookTitle_.clear();
   currentBookId_.clear();
   currentBookTitle_.clear();
   pageSource_.clear();
+  bookCompleted_ = false;
   currentPage_ = 1;
   pageCount_ = 0;
   downloadTotal_ = 0;
@@ -1006,6 +1143,7 @@ void AppController::populateSeries(const QJsonArray &items) {
     const QJsonObject object = value.toObject();
     ListItem item;
     item.id = object.value(QStringLiteral("id")).toString();
+    item.seriesId = item.id;
     item.title = seriesTitle(object);
     item.subtitle = object.value(QStringLiteral("name")).toString();
     item.meta = seriesMeta(object);
@@ -1021,20 +1159,31 @@ void AppController::populateSeries(const QJsonArray &items) {
 
 void AppController::populateBooks(const QJsonArray &items) {
   lastBooks_ = items;
+  QVector<QJsonValue> values;
+  values.reserve(items.size());
+  for (const QJsonValue &value : items) {
+    values.append(value);
+  }
   if (inProgressBooks_) {
-    QVector<QJsonValue> values;
-    values.reserve(items.size());
-    for (const QJsonValue &value : items) {
-      values.append(value);
-    }
     std::stable_sort(values.begin(), values.end(),
                      [](const QJsonValue &left, const QJsonValue &right) {
                        return readDateMs(left) > readDateMs(right);
                      });
-    lastBooks_ = QJsonArray();
-    for (const QJsonValue &value : values) {
-      lastBooks_.append(value);
-    }
+  } else {
+    std::stable_sort(values.begin(), values.end(),
+                     [this](const QJsonValue &left, const QJsonValue &right) {
+                       const double leftNumber = bookSortNumber(left.toObject());
+                       const double rightNumber = bookSortNumber(right.toObject());
+                       if (leftNumber != rightNumber) {
+                         return leftNumber < rightNumber;
+                       }
+                       return QString::localeAwareCompare(bookTitle(left.toObject()),
+                                                          bookTitle(right.toObject())) < 0;
+                     });
+  }
+  lastBooks_ = QJsonArray();
+  for (const QJsonValue &value : values) {
+    lastBooks_.append(value);
   }
   refreshBooksModel();
   setStatus(QStringLiteral("Books loaded"));
@@ -1048,6 +1197,7 @@ void AppController::populateNewSeries(const QJsonArray &items) {
     const QJsonObject object = value.toObject();
     ListItem item;
     item.id = object.value(QStringLiteral("id")).toString();
+    item.seriesId = item.id;
     item.title = seriesTitle(object);
     item.subtitle = object.value(QStringLiteral("name")).toString();
     item.meta = seriesMeta(object);
@@ -1069,6 +1219,7 @@ void AppController::populateOnDeck(const QJsonArray &items) {
     const QString id = object.value(QStringLiteral("id")).toString();
     ListItem item;
     item.id = id;
+    item.seriesId = object.value(QStringLiteral("seriesId")).toString();
     item.title = bookTitle(object);
     item.subtitle = object.value(QStringLiteral("seriesTitle")).toString();
     item.meta = bookMeta(object);
@@ -1137,6 +1288,10 @@ void AppController::refreshBooksModel() {
     const QString id = object.value(QStringLiteral("id")).toString();
     ListItem item;
     item.id = id;
+    item.seriesId = object.value(QStringLiteral("seriesId")).toString();
+    if (item.seriesId.isEmpty()) {
+      item.seriesId = currentSeriesId_;
+    }
     item.title = bookTitle(object);
     item.subtitle = object.value(QStringLiteral("seriesTitle")).toString();
     item.meta = bookMeta(object);
@@ -1161,6 +1316,109 @@ void AppController::refreshBooksModel() {
   emit stateChanged();
 }
 
+void AppController::openBookDetails(const QString &id, const QString &title,
+                                    const QString &seriesTitle, const QString &seriesId,
+                                    int page, int bookPageCount) {
+  if (id.isEmpty()) {
+    return;
+  }
+  currentBookId_ = id;
+  currentBookTitle_ = title;
+  currentSeriesId_ = seriesId;
+  offlineBook_ = false;
+  onDeckBooks_ = false;
+  selectedTitle_ = title;
+  selectedMeta_ = seriesTitle;
+  pageCount_ = bookPageCount;
+  downloadTotal_ = store_->pageCount(id);
+  downloadedCount_ = store_->downloadedCount(id);
+  const bool downloaded = store_->isDownloaded(id);
+  const int storedPage = store_->localPage(id);
+  updatePage(downloaded && storedPage > 0 ? storedPage : (page > 0 ? page : 1));
+  setView(QStringLiteral("reader"));
+  setStatus(downloaded ? QStringLiteral("Ready to read")
+                       : QStringLiteral("Download this book to read offline"));
+  emit stateChanged();
+}
+
+void AppController::refreshNextBook() {
+  nextBookId_.clear();
+  nextBookTitle_.clear();
+  if (currentBookId_.isEmpty() || lastBooks_.isEmpty()) {
+    return;
+  }
+
+  int currentIndex = -1;
+  QJsonObject current;
+  for (int i = 0; i < lastBooks_.size(); ++i) {
+    const QJsonObject object = lastBooks_.at(i).toObject();
+    if (object.value(QStringLiteral("id")).toString() == currentBookId_) {
+      currentIndex = i;
+      current = object;
+      break;
+    }
+  }
+  if (currentIndex < 0) {
+    return;
+  }
+
+  QString seriesId = current.value(QStringLiteral("seriesId")).toString();
+  if (seriesId.isEmpty()) {
+    seriesId = currentSeriesId_;
+  }
+  const double currentNumber = bookSortNumber(current);
+  int bestIndex = -1;
+  double bestNumber = std::numeric_limits<double>::max();
+  int fallbackIndex = -1;
+  for (int i = 0; i < lastBooks_.size(); ++i) {
+    if (i == currentIndex) {
+      continue;
+    }
+    const QJsonObject object = lastBooks_.at(i).toObject();
+    const QString otherSeries = object.value(QStringLiteral("seriesId")).toString();
+    if (!seriesId.isEmpty() && !otherSeries.isEmpty() && otherSeries != seriesId) {
+      continue;
+    }
+    if (fallbackIndex < 0) {
+      fallbackIndex = i;
+    }
+    const double number = bookSortNumber(object);
+    if (number > currentNumber && number < bestNumber) {
+      bestNumber = number;
+      bestIndex = i;
+    }
+  }
+  if (bestIndex < 0 && currentNumber >= std::numeric_limits<double>::max()) {
+    bestIndex = fallbackIndex;
+  }
+  if (bestIndex < 0) {
+    return;
+  }
+
+  const QJsonObject next = lastBooks_.at(bestIndex).toObject();
+  nextBookId_ = next.value(QStringLiteral("id")).toString();
+  nextBookTitle_ = bookTitle(next);
+}
+
+double AppController::bookSortNumber(const QJsonObject &object) const {
+  const QJsonObject metadata = object.value(QStringLiteral("metadata")).toObject();
+  if (metadata.contains(QStringLiteral("numberSort"))) {
+    bool ok = false;
+    const double number = metadata.value(QStringLiteral("numberSort")).toVariant().toDouble(&ok);
+    if (ok) {
+      return number;
+    }
+  }
+  const double metadataNumber = extractNumber(
+      metadata.value(QStringLiteral("number")).toString());
+  if (metadataNumber < std::numeric_limits<double>::max()) {
+    return metadataNumber;
+  }
+  bool ok = false;
+  const double number = object.value(QStringLiteral("number")).toVariant().toDouble(&ok);
+  return ok ? number : std::numeric_limits<double>::max();
+}
+
 void AppController::updatePage(int page) {
   if (pageCount_ > 0) {
     page = qBound(1, page, pageCount_);
@@ -1169,6 +1427,8 @@ void AppController::updatePage(int page) {
   }
   currentPage_ = page;
   pageSource_ = store_->pageSource(currentBookId_, page);
+  bookCompleted_ = pageCount_ > 0 && page >= pageCount_;
+  refreshNextBook();
   if (!pageSource_.isEmpty()) {
     store_->setProgress(currentBookId_, page, true);
     scheduleProgressSync();

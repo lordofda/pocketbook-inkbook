@@ -21,6 +21,8 @@ class Settings : public QObject {
   Q_PROPERTY(QVariantList accounts READ accounts NOTIFY configurationChanged)
   Q_PROPERTY(QString activeAccountId READ activeAccountId NOTIFY configurationChanged)
   Q_PROPERTY(QString activeAccountName READ activeAccountName WRITE setActiveAccountName NOTIFY configurationChanged)
+  Q_PROPERTY(QString defaultAccountId READ defaultAccountId NOTIFY configurationChanged)
+  Q_PROPERTY(QString defaultAccountName READ defaultAccountName NOTIFY configurationChanged)
 
  public:
   explicit Settings(QObject *parent = nullptr);
@@ -38,6 +40,8 @@ class Settings : public QObject {
   QVariantList accounts() const;
   QString activeAccountId() const;
   QString activeAccountName() const;
+  QString defaultAccountId() const;
+  QString defaultAccountName() const;
   QString bookCacheRoot() const;
 
   void setServerUrl(const QString &value);
@@ -57,6 +61,7 @@ class Settings : public QObject {
   Q_INVOKABLE void clearConnection();
   Q_INVOKABLE QString createAccount(const QString &name);
   Q_INVOKABLE bool switchAccount(const QString &id);
+  Q_INVOKABLE bool setDefaultAccount(const QString &id);
   Q_INVOKABLE bool removeAccount(const QString &id);
 
  signals:

@@ -11,6 +11,12 @@ Window {
     title: "Komga Reader"
 
     property bool readerChrome: false
+    property string lastView: controller.view
+
+    function dismissKeyboard() {
+        if (listFilter) listFilter.hideKeyboard()
+        else deviceInfo.hideKeyboard()
+    }
 
     property string headerTitle: {
         if (controller.view === "setup") return "Komga Reader"
@@ -27,12 +33,17 @@ Window {
     Connections {
         target: controller
         function onStateChanged() {
+            if (controller.view !== root.lastView) {
+                root.lastView = controller.view
+                root.dismissKeyboard()
+            }
             if (controller.view !== "reader") root.readerChrome = false
         }
     }
 
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
+            root.dismissKeyboard()
             if (controller.view === "setup") controller.openAccounts()
             else controller.back()
             event.accepted = true
@@ -79,7 +90,10 @@ Window {
                 height: 60
                 text: "Home"
                 active: controller.view !== "setup" && controller.view !== "libraries"
-                onClicked: controller.goHome()
+                onClicked: {
+                    root.dismissKeyboard()
+                    controller.goHome()
+                }
             }
 
             ActionButton {
@@ -87,7 +101,10 @@ Window {
                 height: 60
                 text: "Back"
                 active: controller.view !== "setup" && controller.view !== "libraries"
-                onClicked: controller.back()
+                onClicked: {
+                    root.dismissKeyboard()
+                    controller.back()
+                }
             }
 
             ActionButton {
@@ -95,7 +112,10 @@ Window {
                 height: 60
                 text: "Refresh"
                 active: controller.view !== "setup" && controller.view !== "reader" && controller.view !== "accounts"
-                onClicked: controller.refresh()
+                onClicked: {
+                    root.dismissKeyboard()
+                    controller.refresh()
+                }
             }
 
             ActionButton {
@@ -103,21 +123,30 @@ Window {
                 height: 60
                 text: "Accounts"
                 active: controller.view !== "accounts"
-                onClicked: controller.openAccounts()
+                onClicked: {
+                    root.dismissKeyboard()
+                    controller.openAccounts()
+                }
             }
 
             ActionButton {
                 width: 90
                 height: 60
                 text: appSettings.hideStatusBar ? "Bar:off" : "Bar:on"
-                onClicked: controller.toggleStatusBar()
+                onClicked: {
+                    root.dismissKeyboard()
+                    controller.toggleStatusBar()
+                }
             }
 
             ActionButton {
                 width: 90
                 height: 60
                 text: "Exit"
-                onClicked: controller.exit()
+                onClicked: {
+                    root.dismissKeyboard()
+                    controller.exit()
+                }
             }
         }
     }
@@ -190,6 +219,27 @@ Window {
                     text: appSettings.activeAccountName
                 }
 
+                Row {
+                    spacing: 18
+
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Default: " + appSettings.defaultAccountName
+                        font.pixelSize: 22
+                        color: "#444444"
+                    }
+
+                    ActionButton {
+                        width: 210
+                        height: 56
+                        text: appSettings.defaultAccountId === appSettings.activeAccountId
+                              ? "Default account"
+                              : "Set as default"
+                        active: appSettings.defaultAccountId !== appSettings.activeAccountId
+                        onClicked: controller.setDefaultAccount(appSettings.activeAccountId)
+                    }
+                }
+
                 InputField {
                     id: serverUrlInput
                     width: parent.width
@@ -238,8 +288,12 @@ Window {
         }
 
         Item {
+            id: accountsView
             anchors.fill: parent
             visible: controller.view === "accounts"
+
+            property string deleteAccountId: ""
+            property string deleteAccountName: ""
 
             Row {
                 id: accountActions
@@ -258,7 +312,7 @@ Window {
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Active: " + appSettings.activeAccountName
+                    text: "Active: " + appSettings.activeAccountName + " · Default: " + appSettings.defaultAccountName
                     font.pixelSize: 24
                     color: "#444444"
                 }
@@ -271,7 +325,9 @@ Window {
                 anchors.bottom: parent.bottom
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.margins: 24
+                anchors.leftMargin: 24
+                anchors.rightMargin: 110
+                anchors.bottomMargin: 24
                 clip: true
                 spacing: 14
                 model: appSettings.accounts
@@ -282,10 +338,94 @@ Window {
                     name: modelData.name
                     serverUrl: modelData.serverUrl
                     active: modelData.active
+                    isDefault: modelData.isDefault
                     configured: modelData.configured
                     onUseClicked: controller.switchAccount(modelData.id)
                     onEditClicked: controller.editAccount(modelData.id)
-                    onDeleteClicked: controller.deleteAccount(modelData.id)
+                    onDeleteClicked: {
+                        accountsView.deleteAccountId = modelData.id
+                        accountsView.deleteAccountName = modelData.name !== "" ? modelData.name : modelData.id
+                        deleteAccountDialog.visible = true
+                    }
+                }
+            }
+
+            ListScroller {
+                anchors.top: accountActions.bottom
+                anchors.topMargin: 18
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 24
+                anchors.right: parent.right
+                anchors.rightMargin: 24
+                view: accountList
+            }
+
+            Rectangle {
+                id: deleteAccountDialog
+                anchors.fill: parent
+                visible: false
+                color: "#99000000"
+                z: 20
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: deleteAccountDialog.visible = false
+                }
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: Math.min(parent.width - 80, 760)
+                    height: 280
+                    color: "#ffffff"
+                    border.color: "#333333"
+                    border.width: 2
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {}
+                    }
+
+                    Column {
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.margins: 28
+                        spacing: 18
+
+                        Text {
+                            width: parent.width
+                            text: "Delete account?"
+                            font.pixelSize: 36
+                            font.bold: true
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: "Delete '" + accountsView.deleteAccountName + "'? Its connection settings will be removed."
+                            font.pixelSize: 22
+                            wrapMode: Text.WordWrap
+                        }
+
+                        Row {
+                            spacing: 18
+
+                            ActionButton {
+                                width: 180
+                                text: "Delete"
+                                onClicked: {
+                                    const id = accountsView.deleteAccountId
+                                    deleteAccountDialog.visible = false
+                                    controller.deleteAccount(id)
+                                }
+                            }
+
+                            ActionButton {
+                                width: 160
+                                text: "Cancel"
+                                onClicked: deleteAccountDialog.visible = false
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -349,6 +489,7 @@ Window {
                 anchors.bottom: parent.bottom
                 anchors.left: parent.left
                 anchors.right: parent.right
+                anchors.rightMargin: 90
                 clip: true
                 spacing: 14
                 model: controller.view === "libraries" ? controller.libraryModel
@@ -361,14 +502,18 @@ Window {
                 delegate: ListRow {
                     width: librariesList.width
                     itemId: model.itemId
+                    seriesId: model.seriesId
                     title: model.title
                     subtitle: model.subtitle
                     meta: model.meta
                     badge: model.badge
                     downloaded: model.downloaded
                     showDelete: controller.view === "offline"
+                    showOpenSeries: controller.view === "books" || controller.view === "inProgress" || controller.view === "onDeck"
+                    showDownload: !model.downloaded && (controller.view === "books" || controller.view === "inProgress" || controller.view === "onDeck")
                     onClicked: {
                         const id = model.itemId
+                        root.dismissKeyboard()
                         controller.noteRowTap(id, index)
                         if (controller.view === "libraries") {
                             if (id !== "") controller.openLibraryId(id)
@@ -388,7 +533,23 @@ Window {
                         }
                     }
                     onDeleteClicked: controller.deleteOfflineBook(model.itemId)
+                    onOpenSeriesClicked: {
+                        root.dismissKeyboard()
+                        controller.openSeriesForBookId(model.seriesId)
+                    }
+                    onDownloadClicked: {
+                        root.dismissKeyboard()
+                        controller.downloadBookId(model.itemId)
+                    }
                 }
+            }
+
+            ListScroller {
+                anchors.top: listFilter.bottom
+                anchors.topMargin: 14
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                view: librariesList
             }
         }
 
@@ -412,6 +573,7 @@ Window {
                 MouseArea {
                     anchors.fill: parent
                     onClicked: function (mouse) {
+                        root.dismissKeyboard()
                         if (mouse.x < parent.width / 3) controller.previousPage()
                         else if (mouse.x > parent.width * 2 / 3) controller.nextPage()
                         else root.readerChrome = !root.readerChrome
@@ -435,11 +597,11 @@ Window {
                 anchors.bottom: parent.bottom
                 anchors.margins: 18
                 visible: controller.view === "reader" && root.readerChrome
-                spacing: 10
+                spacing: 6
                 layoutDirection: Qt.LeftToRight
 
                 ActionButton {
-                    width: 100
+                    width: 90
                     height: 64
                     text: "Prev"
                     active: controller.pageSource !== ""
@@ -447,14 +609,14 @@ Window {
                 }
 
                 ActionButton {
-                    width: 140
+                    width: 120
                     height: 64
                     text: controller.currentPage + " / " + Math.max(controller.pageCount, 1)
                     active: false
                 }
 
                 ActionButton {
-                    width: 100
+                    width: 90
                     height: 64
                     text: "Next"
                     active: controller.pageSource !== ""
@@ -462,14 +624,14 @@ Window {
                 }
 
                 ActionButton {
-                    width: 130
+                    width: 120
                     height: 64
                     text: "Download"
                     onClicked: controller.downloadCurrentBook()
                 }
 
                 ActionButton {
-                    width: 110
+                    width: 90
                     height: 64
                     text: "Sync"
                     active: controller.currentBookDownloaded && !controller.busy
@@ -477,18 +639,81 @@ Window {
                 }
 
                 ActionButton {
-                    width: 110
+                    width: 140
+                    height: 64
+                    text: "Open series"
+                    active: controller.currentSeriesId !== ""
+                    onClicked: controller.openCurrentSeries()
+                }
+
+                ActionButton {
+                    width: 90
                     height: 64
                     text: appSettings.grayscale ? "Gray" : "Color"
                     onClicked: controller.toggleGrayscale()
                 }
 
                 ActionButton {
-                    width: 110
+                    width: 90
                     height: 64
                     text: "Delete"
                     active: controller.currentBookDownloaded
                     onClicked: controller.deleteCurrentBook()
+                }
+            }
+
+            Rectangle {
+                id: completionBanner
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: root.readerChrome ? readerControls.top : parent.bottom
+                anchors.bottomMargin: root.readerChrome ? 12 : 24
+                width: Math.min(parent.width - 48, 980)
+                height: 76
+                visible: controller.view === "reader" && controller.bookCompleted
+                color: "#eef5ff"
+                border.color: "#4477aa"
+                border.width: 2
+                radius: 6
+                z: 3
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 12
+
+                    Text {
+                        width: 110
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "Finished"
+                        font.pixelSize: 24
+                        font.bold: true
+                        color: "#224466"
+                    }
+
+                    Text {
+                        width: 420
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: controller.nextBookId !== "" ? "Next: " + controller.nextBookTitle
+                                                           : "No next book found"
+                        font.pixelSize: 22
+                        color: "#333333"
+                        elide: Text.ElideRight
+                    }
+
+                    ActionButton {
+                        width: 130
+                        height: 56
+                        text: "Open next"
+                        active: controller.nextBookId !== ""
+                        onClicked: controller.openNextBook()
+                    }
+
+                    ActionButton {
+                        width: 140
+                        height: 56
+                        text: "Open series"
+                        active: controller.currentSeriesId !== ""
+                        onClicked: controller.openCurrentSeries()
+                    }
                 }
             }
         }
