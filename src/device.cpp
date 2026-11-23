@@ -21,6 +21,13 @@ QString inkViewFontFamily() {
   return family != nullptr ? QString::fromUtf8(family) : QString();
 }
 
+void setSystemStatusBarVisible(bool visible) {
+  SetCurrentApplicationAttribute(APPLICATION_READER, 1);
+  SetPanelSeparatorEnabled(visible ? 1 : 0);
+  SetShowPanelReader(visible ? 1 : 0);
+  SetPanelType(visible ? PANEL_ENABLED : PANEL_DISABLED);
+}
+
 DeviceInfo::DeviceInfo(ScreenSize screen, QObject *parent)
     : QObject(parent), screen_(screen) {}
 

@@ -11,6 +11,7 @@ struct ScreenSize {
 
 ScreenSize openInkViewScreen();
 QString inkViewFontFamily();
+void setSystemStatusBarVisible(bool visible);
 
 class DeviceInfo : public QObject {
   Q_OBJECT

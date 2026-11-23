@@ -144,6 +144,11 @@ int KomgaApi::fetchBooks(const QString &seriesId) {
                       QJsonDocument(body).toJson(QJsonDocument::Compact));
 }
 
+int KomgaApi::fetchBook(const QString &bookId) {
+  const QString path = QStringLiteral("/api/v1/books/%1").arg(encodedSegment(bookId));
+  return beginRequest(QStringLiteral("book"), makeRequest(path), QByteArray(), bookId);
+}
+
 int KomgaApi::fetchPages(const QString &bookId) {
   const QString path = QStringLiteral("/api/v1/books/%1/pages").arg(encodedSegment(bookId));
   return beginRequest(QStringLiteral("pages"), makeRequest(path), QByteArray(), bookId);
@@ -324,6 +329,18 @@ void KomgaApi::onFinished() {
 
   if (pending.purpose == QStringLiteral("progress")) {
     emit progressUpdated(pending.id, pending.bookId, true);
+    cleanup(reply);
+    return;
+  }
+
+  if (pending.purpose == QStringLiteral("book")) {
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(body, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+      fail(QStringLiteral("Invalid book response"));
+      return;
+    }
+    emit bookReceived(pending.id, document.object());
     cleanup(reply);
     return;
   }

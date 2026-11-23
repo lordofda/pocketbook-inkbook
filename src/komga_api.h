@@ -2,6 +2,7 @@
 
 #include <QHash>
 #include <QJsonArray>
+#include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QObject>
@@ -32,6 +33,7 @@ class KomgaApi : public QObject {
   Q_INVOKABLE int fetchSeries(const QString &libraryId);
   Q_INVOKABLE int fetchBooks(const QString &seriesId);
   Q_INVOKABLE int fetchInProgressBooks();
+  Q_INVOKABLE int fetchBook(const QString &bookId);
   Q_INVOKABLE int fetchPages(const QString &bookId);
   Q_INVOKABLE int updateProgress(const QString &bookId, int page, bool completed = false);
   Q_INVOKABLE int downloadPage(const QString &bookId, int page, const QString &destination);
@@ -41,6 +43,7 @@ class KomgaApi : public QObject {
   void librariesReceived(int requestId, const QJsonArray &items);
   void seriesReceived(int requestId, const QJsonArray &items);
   void booksReceived(int requestId, const QJsonArray &items);
+  void bookReceived(int requestId, const QJsonObject &book);
   void pagesReceived(int requestId, const QString &bookId, const QJsonArray &items);
   void progressUpdated(int requestId, const QString &bookId, bool ok);
   void certificateDiscovered(int requestId, const QString &fingerprint, const QString &pem);

@@ -6,16 +6,26 @@ Window {
 
     visible: true
     width: deviceInfo.screenWidth
-    height: deviceInfo.screenHeight - deviceInfo.panelHeight
+    height: deviceInfo.screenHeight - (appSettings.hideStatusBar ? 0 : deviceInfo.panelHeight)
     color: "#ffffff"
     title: "Komga Reader"
+
+    property bool readerChrome: false
 
     property string headerTitle: {
         if (controller.view === "setup") return "Komga Reader"
         if (controller.view === "libraries") return "Libraries"
+        if (controller.view === "offline") return "Offline books"
         if (controller.view === "series") return controller.selectedTitle
         if (controller.view === "books") return controller.selectedTitle
         return controller.selectedTitle
+    }
+
+    Connections {
+        target: controller
+        function onStateChanged() {
+            if (controller.view !== "reader") root.readerChrome = false
+        }
     }
 
     Keys.onPressed: function (event) {
@@ -37,6 +47,7 @@ Window {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
+        visible: controller.view !== "reader" || root.readerChrome
         height: 96
         color: "#f4f4f4"
         border.color: "#cccccc"
@@ -46,7 +57,7 @@ Window {
             anchors.left: parent.left
             anchors.leftMargin: 24
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - 640
+            width: parent.width - 720
             text: root.headerTitle
             font.pixelSize: 34
             font.bold: true
@@ -56,37 +67,45 @@ Window {
 
         Row {
             anchors.right: parent.right
-            anchors.rightMargin: 20
+            anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 12
+            spacing: 10
 
             ActionButton {
-                width: 140
-                height: 64
+                width: 110
+                height: 60
                 text: "Back"
                 active: controller.view !== "setup" && controller.view !== "libraries"
                 onClicked: controller.back()
             }
 
             ActionButton {
-                width: 180
-                height: 64
+                width: 130
+                height: 60
+                text: "Offline"
+                active: controller.view !== "setup" && controller.view !== "offline" && controller.view !== "reader"
+                onClicked: controller.openOffline()
+            }
+
+            ActionButton {
+                width: 150
+                height: 60
                 text: "In progress"
                 active: controller.view === "libraries"
                 onClicked: controller.openInProgress()
             }
 
             ActionButton {
-                width: 140
-                height: 64
+                width: 120
+                height: 60
                 text: "Refresh"
                 active: controller.view !== "setup" && controller.view !== "reader"
                 onClicked: controller.refresh()
             }
 
             ActionButton {
-                width: 120
-                height: 64
+                width: 110
+                height: 60
                 text: "Exit"
                 onClicked: controller.exit()
             }
@@ -98,6 +117,7 @@ Window {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
+        visible: controller.view !== "reader" || root.readerChrome
         height: 70
         color: "#eeeeee"
         border.color: "#cccccc"
@@ -117,8 +137,8 @@ Window {
 
     Item {
         id: content
-        anchors.top: header.bottom
-        anchors.bottom: footer.top
+        anchors.top: header.visible ? header.bottom : parent.top
+        anchors.bottom: footer.visible ? footer.top : parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
 
@@ -203,12 +223,13 @@ Window {
             id: librariesList
             anchors.fill: parent
             anchors.margins: 24
-            visible: controller.view === "libraries" || controller.view === "series" || controller.view === "books" || controller.view === "inProgress"
+            visible: controller.view === "libraries" || controller.view === "series" || controller.view === "books" || controller.view === "inProgress" || controller.view === "offline"
             clip: true
             spacing: 14
             model: controller.view === "libraries" ? controller.libraryModel
                                                    : controller.view === "series" ? controller.seriesModel
-                                                                                  : controller.bookModel
+                                                                                  : controller.view === "offline" ? controller.offlineModel
+                                                                                                                   : controller.bookModel
 
             delegate: ListRow {
                 width: librariesList.width
@@ -218,15 +239,7 @@ Window {
                 meta: model.meta
                 badge: model.badge
                 downloaded: model.downloaded
-                Text {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 18
-                    anchors.bottom: parent.bottom
-                    anchors.bottomMargin: 2
-                    font.pixelSize: 14
-                    color: "#cc0000"
-                    text: parent.itemId + " | " + parent.title
-                }
+                showDelete: controller.view === "offline"
                 onClicked: {
                     const id = model.itemId
                     controller.noteRowTap(id, index)
@@ -236,11 +249,14 @@ Window {
                     } else if (controller.view === "series") {
                         if (id !== "") controller.openSeriesId(id)
                         else controller.openSeries(index)
+                    } else if (controller.view === "offline") {
+                        if (id !== "") controller.openOfflineBookId(id)
                     } else {
                         if (id !== "") controller.openBookId(id)
                         else controller.openBook(index)
                     }
                 }
+                onDeleteClicked: controller.deleteOfflineBook(model.itemId)
             }
         }
 
@@ -253,7 +269,7 @@ Window {
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.bottom: readerControls.top
+                anchors.bottom: root.readerChrome ? readerControls.top : parent.bottom
                 anchors.margins: 16
                 source: controller.pageSource
                 fillMode: Image.PreserveAspectFit
@@ -266,6 +282,7 @@ Window {
                     onClicked: function (mouse) {
                         if (mouse.x < parent.width / 3) controller.previousPage()
                         else if (mouse.x > parent.width * 2 / 3) controller.nextPage()
+                        else root.readerChrome = !root.readerChrome
                     }
                 }
             }
@@ -285,49 +302,65 @@ Window {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.margins: 18
-                spacing: 12
+                visible: controller.view === "reader" && root.readerChrome
+                spacing: 10
                 layoutDirection: Qt.LeftToRight
 
                 ActionButton {
-                    width: 130
-                    height: 68
+                    width: 100
+                    height: 64
                     text: "Prev"
                     active: controller.pageSource !== ""
                     onClicked: controller.previousPage()
                 }
 
                 ActionButton {
-                    width: 170
-                    height: 68
+                    width: 140
+                    height: 64
                     text: controller.currentPage + " / " + Math.max(controller.pageCount, 1)
                     active: false
                 }
 
                 ActionButton {
-                    width: 130
-                    height: 68
+                    width: 100
+                    height: 64
                     text: "Next"
                     active: controller.pageSource !== ""
                     onClicked: controller.nextPage()
                 }
 
                 ActionButton {
-                    width: 160
-                    height: 68
+                    width: 130
+                    height: 64
                     text: "Download"
                     onClicked: controller.downloadCurrentBook()
                 }
 
                 ActionButton {
-                    width: 150
-                    height: 68
+                    width: 110
+                    height: 64
+                    text: "Sync"
+                    active: controller.currentBookDownloaded && !controller.busy
+                    onClicked: controller.syncCurrentProgress()
+                }
+
+                ActionButton {
+                    width: 110
+                    height: 64
                     text: appSettings.grayscale ? "Gray" : "Color"
                     onClicked: controller.toggleGrayscale()
                 }
 
                 ActionButton {
-                    width: 130
-                    height: 68
+                    width: 110
+                    height: 64
+                    text: appSettings.hideStatusBar ? "Bar:off" : "Bar:on"
+                    onClicked: controller.toggleStatusBar()
+                }
+
+                ActionButton {
+                    width: 110
+                    height: 64
                     text: "Delete"
                     active: controller.currentBookDownloaded
                     onClicked: controller.deleteCurrentBook()

@@ -14,6 +14,7 @@ constexpr const char *kApiKeyKey = "server/apiKey";
 constexpr const char *kFingerprintKey = "server/certFingerprint";
 constexpr const char *kPemKey = "server/certPem";
 constexpr const char *kGrayscaleKey = "reader/grayscale";
+constexpr const char *kHideStatusBarKey = "reader/hideStatusBar";
 
 QString defaultCacheRoot() {
   const QString deviceRoot = QStringLiteral("/mnt/ext1");
@@ -54,6 +55,10 @@ QString Settings::certPem() const {
 
 bool Settings::grayscale() const {
   return settings_.value(kGrayscaleKey, true).toBool();
+}
+
+bool Settings::hideStatusBar() const {
+  return settings_.value(kHideStatusBarKey, true).toBool();
 }
 
 bool Settings::configured() const {
@@ -98,6 +103,12 @@ void Settings::setCertPem(const QString &value) {
 
 void Settings::setGrayscale(bool value) {
   settings_.setValue(kGrayscaleKey, value);
+  persist();
+  emit configurationChanged();
+}
+
+void Settings::setHideStatusBar(bool value) {
+  settings_.setValue(kHideStatusBarKey, value);
   persist();
   emit configurationChanged();
 }

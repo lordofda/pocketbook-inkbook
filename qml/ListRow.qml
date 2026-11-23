@@ -9,7 +9,9 @@ Rectangle {
     property string meta: ""
     property string badge: ""
     property bool downloaded: false
+    property bool showDelete: false
     signal clicked()
+    signal deleteClicked()
 
     width: 100
     height: 132
@@ -22,7 +24,7 @@ Rectangle {
         anchors.leftMargin: 18
         anchors.top: parent.top
         anchors.topMargin: 12
-        width: parent.width - 160
+        width: parent.width - 160 - (row.showDelete ? 136 : 0)
         text: row.title
         font.pixelSize: 30
         font.bold: true
@@ -47,7 +49,7 @@ Rectangle {
         anchors.leftMargin: 18
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 12
-        width: parent.width - 160
+        width: parent.width - 160 - (row.showDelete ? 136 : 0)
         text: row.meta
         font.pixelSize: 21
         color: "#666666"
@@ -56,17 +58,46 @@ Rectangle {
 
     Text {
         anchors.right: parent.right
-        anchors.rightMargin: 18
+        anchors.rightMargin: 18 + (row.showDelete ? 136 : 0)
         anchors.verticalCenter: parent.verticalCenter
-        text: row.downloaded ? "OFFLINE" : row.badge
+        text: row.badge !== "" ? row.badge : (row.downloaded ? "OFFLINE" : "")
         font.pixelSize: 19
         font.bold: true
-        color: row.downloaded ? "#006600" : "#666666"
+        color: row.badge === "SYNC" ? "#995500" : (row.downloaded ? "#006600" : "#666666")
     }
 
     MouseArea {
         anchors.fill: parent
         preventStealing: true
         onPressed: row.clicked()
+    }
+
+    MouseArea {
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.rightMargin: 12
+        width: row.showDelete ? 120 : 0
+        height: parent.height
+        visible: row.showDelete
+        enabled: row.showDelete
+        preventStealing: true
+        z: 2
+
+        Rectangle {
+            anchors.fill: parent
+            color: "#f0f0f0"
+            border.color: "#999999"
+            border.width: 1
+            radius: 4
+        }
+
+        Text {
+            anchors.centerIn: parent
+            text: "Delete"
+            font.pixelSize: 24
+            color: "#661111"
+        }
+
+        onClicked: row.deleteClicked()
     }
 }

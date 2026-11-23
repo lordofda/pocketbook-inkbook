@@ -2,6 +2,7 @@
 
 #include <QHash>
 #include <QJsonArray>
+#include <QJsonObject>
 #include <QObject>
 #include <QStringList>
 #include <QTimer>
@@ -16,6 +17,7 @@ struct PendingAction {
   QString name;
   QString id;
   int page = 0;
+  bool manual = false;
 };
 
 class AppController : public QObject {
@@ -24,6 +26,7 @@ class AppController : public QObject {
   Q_PROPERTY(ListModel *libraryModel READ libraryModel CONSTANT)
   Q_PROPERTY(ListModel *seriesModel READ seriesModel CONSTANT)
   Q_PROPERTY(ListModel *bookModel READ bookModel CONSTANT)
+  Q_PROPERTY(ListModel *offlineModel READ offlineModel CONSTANT)
   Q_PROPERTY(QString view READ view NOTIFY stateChanged)
   Q_PROPERTY(QString status READ status NOTIFY stateChanged)
   Q_PROPERTY(bool busy READ busy NOTIFY stateChanged)
@@ -48,6 +51,7 @@ class AppController : public QObject {
   ListModel *libraryModel();
   ListModel *seriesModel();
   ListModel *bookModel();
+  ListModel *offlineModel();
   QString view() const;
   QString status() const;
   bool busy() const;
@@ -76,6 +80,12 @@ class AppController : public QObject {
   Q_INVOKABLE void openBook(int row);
   Q_INVOKABLE void openBookId(const QString &id);
   Q_INVOKABLE void openInProgress();
+  Q_INVOKABLE void openOffline();
+  Q_INVOKABLE void openOfflineBookId(const QString &id);
+  Q_INVOKABLE void deleteOfflineBook(const QString &id);
+  Q_INVOKABLE void syncCurrentProgress();
+  Q_INVOKABLE void toggleStatusBar();
+  void applyStatusBar();
   Q_INVOKABLE void noteRowTap(const QString &id, int row);
   Q_INVOKABLE void back();
   Q_INVOKABLE void downloadCurrentBook();
@@ -93,6 +103,7 @@ class AppController : public QObject {
   void onLibraries(const QJsonArray &items, int requestId);
   void onSeries(const QJsonArray &items, int requestId);
   void onBooks(const QJsonArray &items, int requestId);
+  void onBook(const QJsonObject &book, int requestId);
   void onPages(const QString &bookId, const QJsonArray &items, int requestId);
   void onProgressUpdated(const QString &bookId, bool ok, int requestId);
   void onCertificate(const QString &fingerprint, const QString &pem, int requestId);
@@ -108,7 +119,9 @@ class AppController : public QObject {
   void populateLibraries(const QJsonArray &items);
   void populateSeries(const QJsonArray &items);
   void populateBooks(const QJsonArray &items);
+  void populateOfflineBooks();
   void refreshBooksModel();
+  void beginProgressSync(bool manual);
   void updatePage(int page);
   void scheduleProgressSync();
   void startNextDownload();
@@ -125,6 +138,7 @@ class AppController : public QObject {
   ListModel libraryModel_;
   ListModel seriesModel_;
   ListModel bookModel_;
+  ListModel offlineModel_;
   QHash<int, PendingAction> pending_;
   QJsonArray lastLibraries_;
   QJsonArray lastSeries_;
@@ -152,4 +166,5 @@ class AppController : public QObject {
   bool busy_;
   bool showTrustPrompt_;
   bool inProgressBooks_;
+  bool offlineBook_;
 };
