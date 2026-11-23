@@ -1,5 +1,3 @@
-pragma ComponentBehavior: Bound
-
 import QtQuick
 import QtQuick.Window
 
@@ -220,6 +218,15 @@ Window {
                 meta: model.meta
                 badge: model.badge
                 downloaded: model.downloaded
+                Text {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 18
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 2
+                    font.pixelSize: 14
+                    color: "#cc0000"
+                    text: parent.itemId + " | " + parent.title
+                }
                 onClicked: {
                     const id = model.itemId
                     controller.noteRowTap(id, index)
