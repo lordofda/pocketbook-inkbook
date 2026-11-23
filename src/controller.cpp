@@ -81,18 +81,7 @@ AppController::AppController(Settings *settings, KomgaApi *api, BookStore *store
   syncTimer_.setSingleShot(true);
   applyStatusBar();
 
-  const bool needsTrust = settings_->serverUrl().startsWith(QStringLiteral("https"),
-                                                             Qt::CaseInsensitive) &&
-                          !settings_->trusted();
-  if (settings_->configured() && !needsTrust) {
-    view_ = QStringLiteral("libraries");
-    status_ = QStringLiteral("Connecting to Komga...");
-    QMetaObject::invokeMethod(this, "refresh", Qt::QueuedConnection);
-  } else {
-    view_ = QStringLiteral("setup");
-    status_ = settings_->configured() ? QStringLiteral("Trust the server certificate to continue")
-                                      : QStringLiteral("Enter Komga server details");
-  }
+  resetForAccount();
 }
 
 ListModel *AppController::libraryModel() {
@@ -175,8 +164,8 @@ bool AppController::grayscale() const {
   return settings_->grayscale();
 }
 
-void AppController::configure(const QString &url, const QString &key) {
-  if (!settings_->saveConnection(url, key)) {
+void AppController::configure(const QString &url, const QString &key, const QString &name) {
+  if (!settings_->saveConnection(url, key, name)) {
     setStatus(QStringLiteral("Enter a valid HTTPS URL and API key"));
     return;
   }
@@ -232,6 +221,10 @@ void AppController::refresh() {
     return;
   }
 
+  if (view_ == QStringLiteral("accounts")) {
+    setStatus(QStringLiteral("Choose a Komga account"));
+    return;
+  }
   if (view_ == QStringLiteral("offline")) {
     populateOfflineBooks();
     setStatus(QStringLiteral("Offline books refreshed"));
@@ -348,6 +341,54 @@ void AppController::openInProgress() {
   emit stateChanged();
 }
 
+void AppController::openAccounts() {
+  selectedTitle_ = QStringLiteral("Accounts");
+  selectedMeta_.clear();
+  setView(QStringLiteral("accounts"));
+  setStatus(QStringLiteral("Choose a Komga account"));
+  emit stateChanged();
+}
+
+void AppController::newAccount() {
+  if (settings_->createAccount(QStringLiteral("New account")).isEmpty()) {
+    setStatus(QStringLiteral("Could not create account"));
+    return;
+  }
+  resetForAccount();
+  setStatus(QStringLiteral("Name and connect the new account"));
+  emit stateChanged();
+}
+
+void AppController::switchAccount(const QString &id) {
+  if (!settings_->switchAccount(id)) {
+    setStatus(QStringLiteral("Could not switch account"));
+    return;
+  }
+  resetForAccount();
+  setStatus(QStringLiteral("Switched to %1").arg(settings_->activeAccountName()));
+  emit stateChanged();
+}
+
+void AppController::editAccount(const QString &id) {
+  if (!settings_->switchAccount(id)) {
+    setStatus(QStringLiteral("Could not open account"));
+    return;
+  }
+  resetForAccount();
+  setStatus(QStringLiteral("Edit account details"));
+  emit stateChanged();
+}
+
+void AppController::deleteAccount(const QString &id) {
+  if (!settings_->removeAccount(id)) {
+    setStatus(QStringLiteral("Cannot remove the last account"));
+    return;
+  }
+  resetForAccount();
+  setStatus(QStringLiteral("Account removed"));
+  emit stateChanged();
+}
+
 void AppController::openOffline() {
   currentBookId_.clear();
   pageSource_.clear();
@@ -429,6 +470,8 @@ void AppController::back() {
   } else if (view_ == QStringLiteral("inProgress")) {
     setView(QStringLiteral("libraries"));
   } else if (view_ == QStringLiteral("offline")) {
+    setView(QStringLiteral("libraries"));
+  } else if (view_ == QStringLiteral("accounts")) {
     setView(QStringLiteral("libraries"));
   } else if (view_ == QStringLiteral("series")) {
     setView(QStringLiteral("libraries"));
@@ -702,6 +745,49 @@ void AppController::setStatus(const QString &status) {
     return;
   }
   status_ = status;
+  emit stateChanged();
+}
+
+void AppController::resetForAccount() {
+  syncTimer_.stop();
+  clearDownloads();
+  pending_.clear();
+  lastLibraries_ = QJsonArray();
+  lastSeries_ = QJsonArray();
+  lastBooks_ = QJsonArray();
+  libraryModel_.clear();
+  seriesModel_.clear();
+  bookModel_.clear();
+  offlineModel_.clear();
+  currentLibraryId_.clear();
+  currentSeriesId_.clear();
+  currentBookId_.clear();
+  currentBookTitle_.clear();
+  pageSource_.clear();
+  currentPage_ = 1;
+  pageCount_ = 0;
+  downloadTotal_ = 0;
+  downloadedCount_ = 0;
+  discoveredFingerprint_.clear();
+  discoveredPem_.clear();
+  showTrustPrompt_ = false;
+  inProgressBooks_ = false;
+  offlineBook_ = false;
+  selectedTitle_.clear();
+  selectedMeta_.clear();
+
+  const bool needsTrust =
+      settings_->serverUrl().startsWith(QStringLiteral("https"), Qt::CaseInsensitive) &&
+      !settings_->trusted();
+  if (settings_->configured() && !needsTrust) {
+    setView(QStringLiteral("libraries"));
+    setStatus(QStringLiteral("Connecting to Komga..."));
+    QMetaObject::invokeMethod(this, "refresh", Qt::QueuedConnection);
+  } else {
+    setView(QStringLiteral("setup"));
+    setStatus(settings_->configured() ? QStringLiteral("Trust the server certificate to continue")
+                                      : QStringLiteral("Enter Komga server details"));
+  }
   emit stateChanged();
 }
 

@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QSettings>
 #include <QString>
+#include <QVariantList>
 
 class Settings : public QObject {
   Q_OBJECT
@@ -17,6 +18,9 @@ class Settings : public QObject {
   Q_PROPERTY(bool trusted READ trusted NOTIFY configurationChanged)
   Q_PROPERTY(QString cacheRoot READ cacheRoot CONSTANT)
   Q_PROPERTY(QString settingsPath READ settingsPath CONSTANT)
+  Q_PROPERTY(QVariantList accounts READ accounts NOTIFY configurationChanged)
+  Q_PROPERTY(QString activeAccountId READ activeAccountId NOTIFY configurationChanged)
+  Q_PROPERTY(QString activeAccountName READ activeAccountName WRITE setActiveAccountName NOTIFY configurationChanged)
 
  public:
   explicit Settings(QObject *parent = nullptr);
@@ -31,6 +35,10 @@ class Settings : public QObject {
   bool trusted() const;
   QString cacheRoot() const;
   QString settingsPath() const;
+  QVariantList accounts() const;
+  QString activeAccountId() const;
+  QString activeAccountName() const;
+  QString bookCacheRoot() const;
 
   void setServerUrl(const QString &value);
   void setApiKey(const QString &value);
@@ -38,20 +46,35 @@ class Settings : public QObject {
   void setCertPem(const QString &value);
   void setGrayscale(bool value);
   void setHideStatusBar(bool value);
+  void setActiveAccountName(const QString &value);
 
   Q_INVOKABLE QString normalizeUrl(const QString &value) const;
   Q_INVOKABLE QString fingerprintFromPem(const QString &pem) const;
   Q_INVOKABLE QString normalizeFingerprint(const QString &value) const;
-  Q_INVOKABLE bool saveConnection(const QString &url, const QString &key);
+  Q_INVOKABLE bool saveConnection(const QString &url, const QString &key,
+                                   const QString &name = QString());
   Q_INVOKABLE bool trustCertificate(const QString &fingerprint, const QString &pem);
   Q_INVOKABLE void clearConnection();
+  Q_INVOKABLE QString createAccount(const QString &name);
+  Q_INVOKABLE bool switchAccount(const QString &id);
+  Q_INVOKABLE bool removeAccount(const QString &id);
 
  signals:
   void configurationChanged();
 
  private:
+  QString accountGroupPath(const QString &id) const;
+  QString accountKey(const QString &key, const QString &id = QString()) const;
+  QString accountValue(const QString &key, const QString &id = QString()) const;
+  void setAccountValue(const QString &key, const QString &value,
+                       const QString &id = QString());
+  void ensureAccounts();
+  void migrateLegacySettings();
+  void migrateLegacyCache();
+  QStringList accountIds() const;
+  QString firstAccountId() const;
   void persist();
 
-  QSettings settings_;
+  mutable QSettings settings_;
   QString cacheRoot_;
 };

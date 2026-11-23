@@ -16,6 +16,7 @@ Window {
         if (controller.view === "setup") return "Komga Reader"
         if (controller.view === "libraries") return "Libraries"
         if (controller.view === "offline") return "Offline books"
+        if (controller.view === "accounts") return "Accounts"
         if (controller.view === "series") return controller.selectedTitle
         if (controller.view === "books") return controller.selectedTitle
         return controller.selectedTitle
@@ -30,7 +31,7 @@ Window {
 
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
-            if (controller.view === "setup") controller.exit()
+            if (controller.view === "setup") controller.openAccounts()
             else controller.back()
             event.accepted = true
         } else if (controller.view === "reader" && event.key === Qt.Key_Left) {
@@ -57,7 +58,7 @@ Window {
             anchors.left: parent.left
             anchors.leftMargin: 24
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - 780
+            width: parent.width - 840
             text: root.headerTitle
             font.pixelSize: 34
             font.bold: true
@@ -67,12 +68,12 @@ Window {
 
         Row {
             anchors.right: parent.right
-            anchors.rightMargin: 16
+            anchors.rightMargin: 12
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 10
+            spacing: 8
 
             ActionButton {
-                width: 100
+                width: 90
                 height: 60
                 text: "Back"
                 active: controller.view !== "setup" && controller.view !== "libraries"
@@ -80,10 +81,10 @@ Window {
             }
 
             ActionButton {
-                width: 120
+                width: 110
                 height: 60
                 text: "Offline"
-                active: controller.view !== "setup" && controller.view !== "offline" && controller.view !== "reader"
+                active: controller.view !== "setup" && controller.view !== "offline" && controller.view !== "reader" && controller.view !== "accounts"
                 onClicked: controller.openOffline()
             }
 
@@ -96,22 +97,30 @@ Window {
             }
 
             ActionButton {
-                width: 110
+                width: 120
                 height: 60
-                text: "Refresh"
-                active: controller.view !== "setup" && controller.view !== "reader"
-                onClicked: controller.refresh()
+                text: "Accounts"
+                active: controller.view !== "accounts"
+                onClicked: controller.openAccounts()
             }
 
             ActionButton {
                 width: 100
+                height: 60
+                text: "Refresh"
+                active: controller.view !== "setup" && controller.view !== "reader" && controller.view !== "accounts"
+                onClicked: controller.refresh()
+            }
+
+            ActionButton {
+                width: 90
                 height: 60
                 text: appSettings.hideStatusBar ? "Bar:off" : "Bar:on"
                 onClicked: controller.toggleStatusBar()
             }
 
             ActionButton {
-                width: 100
+                width: 90
                 height: 60
                 text: "Exit"
                 onClicked: controller.exit()
@@ -173,10 +182,18 @@ Window {
 
                 Text {
                     width: parent.width
-                    text: "Use the Komga HTTPS address and an API key. The server certificate is pinned on first connection."
+                    text: "Name this account, then enter the Komga HTTPS address and API key. The server certificate is pinned per account on first connection."
                     font.pixelSize: 23
                     color: "#444444"
                     wrapMode: Text.WordWrap
+                }
+
+                InputField {
+                    id: accountNameInput
+                    width: parent.width
+                    label: "Account name"
+                    placeholder: "Home Komga"
+                    text: appSettings.activeAccountName
                 }
 
                 InputField {
@@ -203,7 +220,7 @@ Window {
                         text: "Connect"
                         width: 220
                         active: !controller.busy
-                        onClicked: controller.configure(serverUrlInput.text, apiKeyInput.text)
+                        onClicked: controller.configure(serverUrlInput.text, apiKeyInput.text, accountNameInput.text)
                     }
 
                     ActionButton {
@@ -222,6 +239,59 @@ Window {
                     font.pixelSize: 21
                     color: "#555555"
                     wrapMode: Text.WordWrap
+                }
+            }
+        }
+
+        Item {
+            anchors.fill: parent
+            visible: controller.view === "accounts"
+
+            Row {
+                id: accountActions
+                anchors.top: parent.top
+                anchors.topMargin: 24
+                anchors.left: parent.left
+                anchors.leftMargin: 24
+                spacing: 14
+
+                ActionButton {
+                    width: 220
+                    height: 64
+                    text: "New account"
+                    onClicked: controller.newAccount()
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "Active: " + appSettings.activeAccountName
+                    font.pixelSize: 24
+                    color: "#444444"
+                }
+            }
+
+            ListView {
+                id: accountList
+                anchors.top: accountActions.bottom
+                anchors.topMargin: 18
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 24
+                clip: true
+                spacing: 14
+                model: appSettings.accounts
+
+                delegate: AccountRow {
+                    width: accountList.width
+                    accountId: modelData.id
+                    name: modelData.name
+                    serverUrl: modelData.serverUrl
+                    active: modelData.active
+                    configured: modelData.configured
+                    onUseClicked: controller.switchAccount(modelData.id)
+                    onEditClicked: controller.editAccount(modelData.id)
+                    onDeleteClicked: controller.deleteAccount(modelData.id)
                 }
             }
         }

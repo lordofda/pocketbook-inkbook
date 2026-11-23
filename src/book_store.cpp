@@ -30,7 +30,7 @@ QString BookStore::bookDirectory(const QString &bookId) const {
   }
   const QString key = QString::fromLatin1(
       QCryptographicHash::hash(bookId.toUtf8(), QCryptographicHash::Sha256).toHex().left(32));
-  return QDir(settings_->cacheRoot()).filePath(QStringLiteral("books/%1").arg(key));
+  return QDir(settings_->bookCacheRoot()).filePath(QStringLiteral("books/%1").arg(key));
 }
 
 QString BookStore::manifestPath(const QString &bookId) const {
@@ -233,7 +233,7 @@ bool BookStore::removeBook(const QString &bookId) {
 
 QStringList BookStore::downloadedBookIds() const {
   QStringList result;
-  const QString root = QDir(settings_->cacheRoot()).filePath(QStringLiteral("books"));
+  const QString root = QDir(settings_->bookCacheRoot()).filePath(QStringLiteral("books"));
   QDirIterator directories(root, QDir::Dirs | QDir::NoDotAndDotDot);
   while (directories.hasNext()) {
     const QString directory = directories.next();
@@ -252,7 +252,7 @@ QStringList BookStore::downloadedBookIds() const {
 QVariantMap BookStore::cacheStats() const {
   qint64 bytes = 0;
   int books = 0;
-  const QString root = QDir(settings_->cacheRoot()).filePath(QStringLiteral("books"));
+  const QString root = QDir(settings_->bookCacheRoot()).filePath(QStringLiteral("books"));
   QDirIterator files(root, QDir::Files, QDirIterator::Subdirectories);
   while (files.hasNext()) {
     bytes += QFileInfo(files.next()).size();

@@ -69,7 +69,7 @@ class AppController : public QObject {
   bool currentBookDownloaded() const;
   bool grayscale() const;
 
-  Q_INVOKABLE void configure(const QString &url, const QString &key);
+  Q_INVOKABLE void configure(const QString &url, const QString &key, const QString &name);
   Q_INVOKABLE void trustDiscoveredCertificate();
   Q_INVOKABLE void cancelTrust();
   Q_INVOKABLE void refresh();
@@ -80,6 +80,11 @@ class AppController : public QObject {
   Q_INVOKABLE void openBook(int row);
   Q_INVOKABLE void openBookId(const QString &id);
   Q_INVOKABLE void openInProgress();
+  Q_INVOKABLE void openAccounts();
+  Q_INVOKABLE void newAccount();
+  Q_INVOKABLE void switchAccount(const QString &id);
+  Q_INVOKABLE void editAccount(const QString &id);
+  Q_INVOKABLE void deleteAccount(const QString &id);
   Q_INVOKABLE void openOffline();
   Q_INVOKABLE void openOfflineBookId(const QString &id);
   Q_INVOKABLE void deleteOfflineBook(const QString &id);
@@ -115,6 +120,7 @@ class AppController : public QObject {
  private:
   void setView(const QString &view);
   void setStatus(const QString &status);
+  void resetForAccount();
   void finishConnection();
   void populateLibraries(const QJsonArray &items);
   void populateSeries(const QJsonArray &items);

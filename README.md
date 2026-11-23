@@ -9,6 +9,7 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 - Native PocketBook app, sideloaded as `komga-reader.app`.
 - Komga HTTPS connection with runtime-entered API key.
 - First-connection TLS certificate fingerprint pinning; no global SSL bypass.
+- Multiple Komga accounts: add, edit, switch, and delete from the **Accounts** top menu; each account has its own URL, API key, TLS pin, and book cache.
 - Library, series, books, and in-progress browsing.
 - Whole-book offline downloads with local grayscale conversion.
 - Offline books browser: open downloaded books without a server, delete local copies, and see cached size/count.
@@ -26,11 +27,11 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 3. Disconnect/Eject the device and launch **Komga Reader** from Applications.
 4. Enter the Komga HTTPS URL and API key, then verify and trust the displayed SHA-256 certificate fingerprint.
 
-The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`.
+The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/`. Existing single-account installs are migrated to a `default` account on first launch.
 
 ## Security notes
 
-- The API key is stored in plaintext in `/mnt/ext1/.komga-reader/settings.ini` so the app can reconnect offline/after restart. Use a dedicated Komga API key and protect the device.
+- API keys are stored in plaintext per account in `/mnt/ext1/.komga-reader/settings.ini` so the app can reconnect offline/after restart. Use dedicated Komga API keys and protect the device.
 - The TLS certificate fingerprint is pinned on first trusted connection. If the server certificate changes, the app will refuse to connect until the stored pin is cleared or updated.
 - No API key is sent during the initial untrusted certificate probe.
 
@@ -62,6 +63,7 @@ QML validation:
 
 - `qml/main.qml` — main UI, navigation, reader chrome.
 - `qml/ListRow.qml` — reusable list row with optional offline delete button.
+- `qml/AccountRow.qml` — account row with use/edit/delete actions.
 - `src/controller.cpp` — application state, navigation, downloads, sync logic.
 - `src/komga_api.cpp` — Komga REST client, TLS pinning, downloads.
 - `src/book_store.cpp` — offline cache, manifests, grayscale conversion.
@@ -74,6 +76,7 @@ QML validation:
 - First offline scope is whole-book downloads only.
 - Large libraries download sequentially and can feel slow.
 - The `In progress` sort uses Komga's `readProgress.readDate`.
+- Deleting an account removes its settings; its cached book directory is left on disk and can be removed manually if needed.
 - System status bar behavior depends on the InkView firmware API; the toggle is available in the top menu on supported devices.
 
 ## Disclaimer
