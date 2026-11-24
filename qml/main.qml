@@ -205,7 +205,7 @@ Window {
 
                 Text {
                     width: parent.width
-                    text: "Name this account, then enter the Komga HTTPS address and API key. The server certificate is pinned per account on first connection."
+                    text: "Name this account, then enter the Komga HTTPS address and API key. Save stores the details; Connect saves and tests them. The server certificate is pinned per account on first connection."
                     font.pixelSize: 23
                     color: "#444444"
                     wrapMode: Text.WordWrap
@@ -259,6 +259,12 @@ Window {
 
                 Row {
                     spacing: 18
+
+                    ActionButton {
+                        text: "Save"
+                        width: 160
+                        onClicked: controller.saveAccount(serverUrlInput.text, apiKeyInput.text, accountNameInput.text)
+                    }
 
                     ActionButton {
                         text: "Connect"
@@ -341,6 +347,7 @@ Window {
                     isDefault: modelData.isDefault
                     configured: modelData.configured
                     onUseClicked: controller.switchAccount(modelData.id)
+                    onDefaultClicked: controller.setDefaultAccount(modelData.id)
                     onEditClicked: controller.editAccount(modelData.id)
                     onDeleteClicked: {
                         accountsView.deleteAccountId = modelData.id
@@ -557,6 +564,13 @@ Window {
             anchors.fill: parent
             visible: controller.view === "reader"
 
+            Timer {
+                id: colorRefreshTimer
+                interval: 80
+                repeat: false
+                onTriggered: controller.highQualityRefresh()
+            }
+
             Image {
                 id: pageImage
                 anchors.top: parent.top
@@ -569,6 +583,13 @@ Window {
                 asynchronous: true
                 smooth: false
                 cache: false
+
+                onStatusChanged: {
+                    if (status === Image.Ready && controller.view === "reader" &&
+                            controller.pageSource !== "" && !appSettings.grayscale) {
+                        colorRefreshTimer.restart()
+                    }
+                }
 
                 MouseArea {
                     anchors.fill: parent
@@ -651,6 +672,14 @@ Window {
                     height: 64
                     text: appSettings.grayscale ? "Gray" : "Color"
                     onClicked: controller.toggleGrayscale()
+                }
+
+                ActionButton {
+                    width: 100
+                    height: 64
+                    visible: !appSettings.grayscale
+                    text: appSettings.colorBoost ? "Vivid:on" : "Vivid:off"
+                    onClicked: controller.toggleColorBoost()
                 }
 
                 ActionButton {

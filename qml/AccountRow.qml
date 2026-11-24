@@ -11,6 +11,7 @@ Rectangle {
     property bool configured: false
 
     signal useClicked()
+    signal defaultClicked()
     signal editClicked()
     signal deleteClicked()
 
@@ -25,7 +26,7 @@ Rectangle {
         anchors.leftMargin: 18
         anchors.top: parent.top
         anchors.topMargin: 12
-        width: parent.width - 360
+        width: Math.max(0, parent.width - 450)
         text: row.name
         font.pixelSize: 30
         font.bold: true
@@ -38,7 +39,7 @@ Rectangle {
         anchors.leftMargin: 18
         anchors.top: parent.top
         anchors.topMargin: 54
-        width: parent.width - 360
+        width: Math.max(0, parent.width - 450)
         text: row.serverUrl === "" ? "Not configured" : row.serverUrl
         font.pixelSize: 21
         color: "#555555"
@@ -50,7 +51,8 @@ Rectangle {
         anchors.leftMargin: 18
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 10
-        text: row.active ? "ACTIVE" : (row.isDefault ? "DEFAULT" : (row.configured ? "READY" : "SETUP NEEDED"))
+        text: row.active && row.isDefault ? "ACTIVE · DEFAULT"
+              : (row.active ? "ACTIVE" : (row.isDefault ? "DEFAULT" : (row.configured ? "READY" : "SETUP NEEDED")))
         font.pixelSize: 19
         font.bold: true
         color: row.active ? "#006600" : (row.isDefault ? "#114477" : "#777777")
@@ -60,7 +62,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        width: Math.max(0, parent.width - 340)
+        width: Math.max(0, parent.width - 450)
         onClicked: row.useClicked()
     }
 
@@ -70,6 +72,14 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         z: 2
         spacing: 10
+
+        ActionButton {
+            width: 110
+            height: 58
+            text: "Default"
+            active: !row.isDefault
+            onClicked: row.defaultClicked()
+        }
 
         ActionButton {
             width: 90

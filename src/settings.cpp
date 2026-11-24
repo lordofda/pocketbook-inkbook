@@ -20,6 +20,7 @@ constexpr const char *kApiKeyKey = "server/apiKey";
 constexpr const char *kFingerprintKey = "server/certFingerprint";
 constexpr const char *kPemKey = "server/certPem";
 constexpr const char *kGrayscaleKey = "reader/grayscale";
+constexpr const char *kColorBoostKey = "reader/colorBoost";
 constexpr const char *kHideStatusBarKey = "reader/hideStatusBar";
 constexpr const char *kActiveAccountKey = "general/activeAccount";
 constexpr const char *kDefaultAccountKey = "general/defaultAccount";
@@ -161,6 +162,10 @@ bool Settings::grayscale() const {
   return settings_.value(QString::fromLatin1(kGrayscaleKey), true).toBool();
 }
 
+bool Settings::colorBoost() const {
+  return settings_.value(QString::fromLatin1(kColorBoostKey), true).toBool();
+}
+
 bool Settings::hideStatusBar() const {
   return settings_.value(QString::fromLatin1(kHideStatusBarKey), true).toBool();
 }
@@ -270,6 +275,12 @@ void Settings::setGrayscale(bool value) {
   emit configurationChanged();
 }
 
+void Settings::setColorBoost(bool value) {
+  settings_.setValue(QString::fromLatin1(kColorBoostKey), value);
+  persist();
+  emit configurationChanged();
+}
+
 void Settings::setHideStatusBar(bool value) {
   settings_.setValue(QString::fromLatin1(kHideStatusBarKey), value);
   persist();
@@ -324,9 +335,12 @@ QString Settings::normalizeFingerprint(const QString &value) const {
 
 bool Settings::saveConnection(const QString &url, const QString &key, const QString &name) {
   const QString normalized = normalizeUrl(url);
-  if (normalized.isEmpty() || key.trimmed().isEmpty()) {
+  const QString trimmedKey = key.trimmed();
+  if (normalized.isEmpty() || trimmedKey.isEmpty()) {
     return false;
   }
+  const QString previousUrl = accountValue(QStringLiteral("url"));
+  const QString previousKey = accountValue(QStringLiteral("apiKey"));
   QString label = name.trimmed();
   if (label.isEmpty()) {
     const QUrl parsed(normalized);
@@ -334,9 +348,11 @@ bool Settings::saveConnection(const QString &url, const QString &key, const QStr
   }
   setAccountValue(QStringLiteral("name"), label);
   setAccountValue(QStringLiteral("url"), normalized);
-  setAccountValue(QStringLiteral("apiKey"), key.trimmed());
-  settings_.remove(accountKey(QStringLiteral("fingerprint")));
-  settings_.remove(accountKey(QStringLiteral("pem")));
+  setAccountValue(QStringLiteral("apiKey"), trimmedKey);
+  if (normalized != previousUrl || trimmedKey != previousKey.trimmed()) {
+    settings_.remove(accountKey(QStringLiteral("fingerprint")));
+    settings_.remove(accountKey(QStringLiteral("pem")));
+  }
   persist();
   emit configurationChanged();
   return true;
@@ -388,6 +404,7 @@ bool Settings::setDefaultAccount(const QString &id) {
     return false;
   }
   settings_.setValue(QString::fromLatin1(kDefaultAccountKey), id);
+  settings_.setValue(QString::fromLatin1(kActiveAccountKey), id);
   persist();
   emit configurationChanged();
   return true;

@@ -59,7 +59,8 @@ AppController::AppController(Settings *settings, KomgaApi *api, BookStore *store
       offlineBook_(false),
       recentSeries_(false),
       onDeckBooks_(false),
-      bookCompleted_(false) {
+      bookCompleted_(false),
+      forceLocalProgress_(false) {
   connect(api_, &KomgaApi::librariesReceived, this,
           [this](int requestId, const QJsonArray &items) { onLibraries(items, requestId); });
   connect(api_, &KomgaApi::seriesReceived, this,
@@ -216,6 +217,10 @@ bool AppController::grayscale() const {
   return settings_->grayscale();
 }
 
+bool AppController::colorBoost() const {
+  return settings_->colorBoost();
+}
+
 QString AppController::currentSeriesId() const {
   return currentSeriesId_;
 }
@@ -245,6 +250,15 @@ void AppController::configure(const QString &url, const QString &key, const QStr
   setStatus(QStringLiteral("Connecting to Komga..."));
   const int requestId = api_->testConnection();
   pending_.insert(requestId, {QStringLiteral("test"), QString(), 0});
+  emit stateChanged();
+}
+
+void AppController::saveAccount(const QString &url, const QString &key, const QString &name) {
+  if (!settings_->saveConnection(url, key, name)) {
+    setStatus(QStringLiteral("Enter a valid HTTPS URL and API key"));
+    return;
+  }
+  setStatus(QStringLiteral("Account saved"));
   emit stateChanged();
 }
 
@@ -586,6 +600,7 @@ void AppController::setDefaultAccount(const QString &id) {
     setStatus(QStringLiteral("Could not set default account"));
     return;
   }
+  resetForAccount(view_ == QStringLiteral("setup"));
   setStatus(QStringLiteral("Default account set to %1").arg(settings_->defaultAccountName()));
   emit stateChanged();
 }
@@ -629,6 +644,7 @@ void AppController::openOfflineBookId(const QString &id) {
   currentBookId_ = manifest.id;
   currentBookTitle_ = manifest.title;
   currentSeriesId_.clear();
+  forceLocalProgress_ = false;
   nextBookId_.clear();
   nextBookTitle_.clear();
   offlineBook_ = true;
@@ -787,19 +803,19 @@ void AppController::downloadBookId(const QString &id) {
 
 void AppController::nextPage() {
   if (pageCount_ > 0) {
-    updatePage(currentPage_ + 1);
+    updatePage(currentPage_ + 1, true);
   }
 }
 
 void AppController::previousPage() {
   if (pageCount_ > 0) {
-    updatePage(currentPage_ - 1);
+    updatePage(currentPage_ - 1, true);
   }
 }
 
 void AppController::setPage(int page) {
   if (pageCount_ > 0) {
-    updatePage(page);
+    updatePage(page, true);
   }
 }
 
@@ -823,6 +839,20 @@ void AppController::toggleGrayscale() {
   setStatus(settings_->grayscale() ? QStringLiteral("Grayscale downloads enabled")
                                    : QStringLiteral("Color downloads enabled"));
   emit stateChanged();
+}
+
+void AppController::toggleColorBoost() {
+  settings_->setColorBoost(!settings_->colorBoost());
+  setStatus(settings_->colorBoost()
+                ? QStringLiteral("Vivid color downloads enabled · re-download to apply")
+                : QStringLiteral("Vivid color downloads disabled"));
+  emit stateChanged();
+}
+
+void AppController::highQualityRefresh() {
+  if (!settings_->grayscale()) {
+    requestHighQualityRefresh();
+  }
 }
 
 void AppController::exit() {
@@ -877,6 +907,15 @@ void AppController::onBook(const QJsonObject &book, int requestId) {
     serverPage = total;
   }
   const int localPage = action.page;
+
+  if (action.force && localPage > 0) {
+    const bool completed = total > 0 && localPage >= total;
+    const int updateId = api_->updateProgress(bookId, localPage, completed);
+    pending_.insert(updateId, {QStringLiteral("sync"), bookId, localPage, action.manual, true});
+    setStatus(QStringLiteral("Pushing local progress to server..."));
+    emit stateChanged();
+    return;
+  }
 
   if (serverPage > localPage) {
     store_->setProgress(bookId, serverPage, false);
@@ -1013,10 +1052,11 @@ void AppController::syncPendingProgress() {
   if (currentBookId_.isEmpty() || !store_->hasPendingProgress(currentBookId_)) {
     return;
   }
-  beginProgressSync(false);
+  beginProgressSync(false, forceLocalProgress_);
+  forceLocalProgress_ = false;
 }
 
-void AppController::beginProgressSync(bool manual) {
+void AppController::beginProgressSync(bool manual, bool force) {
   if (currentBookId_.isEmpty()) {
     if (manual) {
       setStatus(QStringLiteral("Open a book before syncing progress"));
@@ -1034,7 +1074,7 @@ void AppController::beginProgressSync(bool manual) {
 
   const int page = store_->localPage(currentBookId_);
   const int requestId = api_->fetchBook(currentBookId_);
-  pending_.insert(requestId, {QStringLiteral("syncCheck"), currentBookId_, page, manual});
+  pending_.insert(requestId, {QStringLiteral("syncCheck"), currentBookId_, page, manual, force});
   setStatus(QStringLiteral("Checking server progress..."));
   emit stateChanged();
 }
@@ -1083,6 +1123,7 @@ void AppController::resetForAccount(bool stayInSetup) {
   currentBookTitle_.clear();
   pageSource_.clear();
   bookCompleted_ = false;
+  forceLocalProgress_ = false;
   currentPage_ = 1;
   pageCount_ = 0;
   downloadTotal_ = 0;
@@ -1338,6 +1379,7 @@ void AppController::openBookDetails(const QString &id, const QString &title,
   selectedMeta_ = seriesTitle;
   pageCount_ = bookPageCount;
   downloadTotal_ = store_->pageCount(id);
+  forceLocalProgress_ = false;
   downloadedCount_ = store_->downloadedCount(id);
   const bool downloaded = store_->isDownloaded(id);
   const int storedPage = store_->localPage(id);
@@ -1426,7 +1468,7 @@ double AppController::bookSortNumber(const QJsonObject &object) const {
   return ok ? number : std::numeric_limits<double>::max();
 }
 
-void AppController::updatePage(int page) {
+void AppController::updatePage(int page, bool explicitPageChange) {
   if (pageCount_ > 0) {
     page = qBound(1, page, pageCount_);
   } else {
@@ -1438,6 +1480,9 @@ void AppController::updatePage(int page) {
   refreshNextBook();
   if (!pageSource_.isEmpty()) {
     store_->setProgress(currentBookId_, page, true);
+    if (explicitPageChange) {
+      forceLocalProgress_ = true;
+    }
     scheduleProgressSync();
   }
   emit stateChanged();

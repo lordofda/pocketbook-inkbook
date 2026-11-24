@@ -18,6 +18,7 @@ struct PendingAction {
   QString id;
   int page = 0;
   bool manual = false;
+  bool force = false;
 };
 
 class AppController : public QObject {
@@ -46,6 +47,7 @@ class AppController : public QObject {
   Q_PROPERTY(int downloadTotal READ downloadTotal NOTIFY stateChanged)
   Q_PROPERTY(bool currentBookDownloaded READ currentBookDownloaded NOTIFY stateChanged)
   Q_PROPERTY(bool grayscale READ grayscale NOTIFY stateChanged)
+  Q_PROPERTY(bool colorBoost READ colorBoost NOTIFY stateChanged)
   Q_PROPERTY(QString currentSeriesId READ currentSeriesId NOTIFY stateChanged)
   Q_PROPERTY(bool bookCompleted READ bookCompleted NOTIFY stateChanged)
   Q_PROPERTY(QString nextBookId READ nextBookId NOTIFY stateChanged)
@@ -79,12 +81,14 @@ class AppController : public QObject {
   int downloadTotal() const;
   bool currentBookDownloaded() const;
   bool grayscale() const;
+  bool colorBoost() const;
   QString currentSeriesId() const;
   bool bookCompleted() const;
   QString nextBookId() const;
   QString nextBookTitle() const;
 
   Q_INVOKABLE void configure(const QString &url, const QString &key, const QString &name);
+  Q_INVOKABLE void saveAccount(const QString &url, const QString &key, const QString &name);
   Q_INVOKABLE void trustDiscoveredCertificate();
   Q_INVOKABLE void cancelTrust();
   Q_INVOKABLE void refresh();
@@ -124,6 +128,8 @@ class AppController : public QObject {
   Q_INVOKABLE void setPage(int page);
   Q_INVOKABLE void deleteCurrentBook();
   Q_INVOKABLE void toggleGrayscale();
+  Q_INVOKABLE void toggleColorBoost();
+  Q_INVOKABLE void highQualityRefresh();
   Q_INVOKABLE void exit();
 
  signals:
@@ -160,8 +166,8 @@ class AppController : public QObject {
                        const QString &seriesId, int page, int pageCount);
   void refreshNextBook();
   double bookSortNumber(const QJsonObject &object) const;
-  void beginProgressSync(bool manual);
-  void updatePage(int page);
+  void beginProgressSync(bool manual, bool force = false);
+  void updatePage(int page, bool explicitPageChange = false);
   void scheduleProgressSync();
   void startNextDownload();
   void clearDownloads();
@@ -214,4 +220,5 @@ class AppController : public QObject {
   bool recentSeries_;
   bool onDeckBooks_;
   bool bookCompleted_;
+  bool forceLocalProgress_;
 };

@@ -30,6 +30,12 @@ void setSystemStatusBarVisible(bool visible) {
   SetPanelType(visible ? PANEL_ENABLED : PANEL_DISABLED);
 }
 
+void requestHighQualityRefresh() {
+  const int width = positiveOr(ScreenWidth(), 1072);
+  const int height = positiveOr(ScreenHeight(), 1440);
+  PartialUpdateHQ(0, 0, width, height);
+}
+
 DeviceInfo::DeviceInfo(ScreenSize screen, QObject *parent)
     : QObject(parent), screen_(screen) {}
 
