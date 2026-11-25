@@ -38,7 +38,7 @@ To map an account name to its `<account-id>`, open:
 /mnt/ext1/.komga-reader/settings.ini
 ```
 
-Look for `[accounts]` groups. Each group name is the account ID and contains `name=...`, `url=...`, and the TLS pin. `[general] activeAccount=...` tells you which account is currently selected.
+Look for `[accounts]` groups. Each group name is the account ID and contains `name=...`, `url=...`, and the TLS pin. `[general] startupAccount=...` is the account opened at launch, and `[general] activeAccount=...` tells you which account is currently selected.
 
 ## Recover manually
 

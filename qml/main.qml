@@ -397,7 +397,7 @@ Window {
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Active: " + appSettings.activeAccountName + " · Startup: " + appSettings.defaultAccountName + " (Use/Startup changes startup)"
+                    text: "Active: " + appSettings.activeAccountName + " · Startup: " + appSettings.defaultAccountName + " (Use = active · Startup = startup)"
                     font.pixelSize: 24
                     color: "#444444"
                 }

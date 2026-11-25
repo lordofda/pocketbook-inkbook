@@ -56,7 +56,7 @@ QML does not create business objects. It binds to context properties and calls `
 
 | Module | Responsibility |
 |---|---|
-| `src/settings.cpp/.h` | Persisted INI settings, account records, active/default account, TLS pin storage, cache paths. |
+| `src/settings.cpp/.h` | Persisted INI settings, account records, active/startup account, TLS pin storage, cache paths. |
 | `src/komga_api.cpp/.h` | Komga REST client, TLS fingerprint pinning, page downloads, progress updates. |
 | `src/book_store.cpp/.h` | Per-account offline book cache, manifests, page files, local progress, color cache tracking. |
 | `src/models.cpp/.h` | `ListModel` and typed `ListItem` roles used by all list screens. |
@@ -124,7 +124,8 @@ Typical browsing flow:
 Settings keys include:
 
 - `[general] activeAccount`
-- `[general] defaultAccount`
+- `[general] startupAccount`
+- `[general] defaultAccount` (legacy compatibility)
 - `[accounts/<id>] name`
 - `[accounts/<id>] url`
 - `[accounts/<id>] apiKey`
@@ -138,10 +139,10 @@ Legacy single-account installs are migrated to an account with id `default`, and
 
 The app distinguishes:
 
-- **Startup account**: stored as the default and opened at launch.
+- **Startup account**: stored as `general/startupAccount` and opened at launch.
 - **Active account**: the account currently loaded in the session.
 
-`Settings::switchAccount()` remains active-only for editing. `AppController::switchAccount()` from the **Use** action and `AppController::setDefaultAccount()` from the **Startup** action both persist the startup account and make it active. Editing an account does not change the startup account. `ensureAccounts()` repairs invalid values and makes the startup account active at launch.
+`Settings::switchAccount()` and the **Use** action change only the active account; **Edit** also opens the selected account without changing startup. `AppController::setDefaultAccount()` from the **Startup** action persists only `general/startupAccount`. `ensureAccounts()` validates the saved startup ID, falls back to the legacy key and then a valid active ID when startup is invalid, and makes the resolved startup account active at launch. The legacy `general/defaultAccount` key is read and rewritten for compatibility but is not authoritative. Deleting the startup account repoints startup to the active account when valid, otherwise to the first remaining account.
 
 The account editor shows active and startup account names. The setup form offers **Set as startup** when the active account is not already the startup account.
 
@@ -198,11 +199,11 @@ The row's tap area is limited to the left/text portion. Action buttons live in a
 `AccountRow.qml` shows name, server URL, and status:
 
 - `ACTIVE`
-- `STARTUP` if not active but configured as startup default
+- `STARTUP` if not active but configured as the startup account
 - `READY`
 - `SETUP NEEDED`
 
-Actions are **Startup**, **Use**, **Edit**, and **Delete**. Startup and Use both persist the startup account. Editing always opens the setup form, even for a fully configured account.
+Actions are **Startup**, **Use**, **Edit**, and **Delete**. Startup persists the launch account; Use and Edit change only the active account. Editing always opens the setup form, even for a fully configured account.
 
 ### 6.5 Delete confirmation
 
@@ -319,7 +320,8 @@ The cleanup branch separates download state from reader state. Row downloads no 
 | Download marked book in progress | Row downloads keep separate target/title state; reader updates only for the active online book. |
 | Avoid force-pushing released tags | Used new incremental tags `v1.2.1` and `v1.2.2` instead of moving `v1.2.0`. |
 | Washed-out color on Kaleido 3 | Native reader loads RGB24 bitmaps, calls `adjustBitmapDefault()`, and refreshes through InkView; new caches store color bytes and record a color-cache flag. |
-| Startup account could not be changed reliably | Both **Use** and **Startup** now persist the startup account; editing remains active-only so it does not silently replace the startup account. |
+| Startup account could not be changed reliably | Startup and active account state are now separate keys; only **Startup** writes `general/startupAccount`, while **Use** and **Edit** update only the active account. |
+| Startup account fell back alphabetically | `ensureAccounts()` now validates the persisted startup ID, falls back to the legacy key then a valid active ID when startup is invalid, and immediately persists the repaired keys. |
 | Incomplete cache reset progress to page 1 on download | Opening a book now restores stored manifest progress regardless of full-download state, falls back to manifest page count when the list omits it, and keeps a server-reported page from collapsing to 1. |
 | Reader navigation icons | Previous/Next are left/right arrows, Download is a bold down arrow, Series and Delete were removed from reading mode, and Exit was added. The Bar control was removed from the native reader bar. |
 | Top bar text and shortcuts | Home, Refresh, and Accounts reverted to text because the icons were not well liked; In progress/Offline/Recently added/On deck moved into a second row. |

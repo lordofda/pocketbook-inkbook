@@ -11,7 +11,7 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 - Native PocketBook app, sideloaded as `komga-reader.app`.
 - Komga HTTPS connection with runtime-entered API key.
 - First-connection TLS certificate fingerprint pinning; no global SSL bypass.
-- Multiple Komga accounts: add, edit, switch, and delete from the **Accounts** top menu; each account has its own URL, API key, TLS pin, and book cache. **Save** stores edited details, **Connect** saves and tests them, and either **Use** or **Startup** makes that account the one opened at startup.
+- Multiple Komga accounts: add, edit, switch, and delete from the **Accounts** top menu; each account has its own URL, API key, TLS pin, and book cache. **Save** stores edited details, **Connect** saves and tests them, **Use** changes the active account, and **Startup** chooses the account opened at launch.
 - Library, series, and books browsing, with In progress, Offline, Recently added, and On deck shortcuts in the top bar.
 - Recently added series and on-deck books, using Komga's `/api/v1/series/new` and `/api/v1/books/ondeck` views.
 - Search and A–Z title filtering on every list view, with a Done button to dismiss the on-screen keyboard.
@@ -35,7 +35,8 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 3. Disconnect/Eject the device and launch **Komga Reader** from Applications.
 4. Enter the Komga HTTPS URL and API key, then verify and trust the displayed SHA-256 certificate fingerprint.
 
-The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/`. Existing single-account installs are migrated to a `default` account on first launch. If cached books do not appear after upgrading, see [CACHE_RECOVERY.md](CACHE_RECOVERY.md). Books cached by older grayscale builds must be downloaded again for vivid color.
+The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; the startup account is stored separately from the active account, and book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/`. Existing single-account installs are migrated to a `default` account on first launch.
+If cached books do not appear after upgrading, see [CACHE_RECOVERY.md](CACHE_RECOVERY.md). Books cached by older grayscale builds must be downloaded again for vivid color.
 
 ## Security notes
 
@@ -73,7 +74,7 @@ QML validation:
 
 - `qml/main.qml` — main UI, navigation, reader chrome.
 - `qml/ListRow.qml` — reusable list row with optional offline delete button.
-- `qml/AccountRow.qml` — account row with use/edit/delete actions.
+- `qml/AccountRow.qml` — account row with startup/use/edit/delete actions.
 - `src/controller.cpp` — application state, navigation, downloads, sync logic.
 - `src/komga_api.cpp` — Komga REST client, TLS pinning, downloads.
 - `src/book_store.cpp` — offline cache, manifests, color cache tracking.

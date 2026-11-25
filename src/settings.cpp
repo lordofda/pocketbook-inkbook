@@ -21,6 +21,7 @@ constexpr const char *kFingerprintKey = "server/certFingerprint";
 constexpr const char *kPemKey = "server/certPem";
 constexpr const char *kHideStatusBarKey = "reader/hideStatusBar";
 constexpr const char *kActiveAccountKey = "general/activeAccount";
+constexpr const char *kStartupAccountKey = "general/startupAccount";
 constexpr const char *kDefaultAccountKey = "general/defaultAccount";
 constexpr const char *kAccountsRoot = "accounts";
 
@@ -73,12 +74,23 @@ void Settings::ensureAccounts() {
     ids.append(id);
   }
   const QString active = settings_.value(QString::fromLatin1(kActiveAccountKey)).toString();
-  QString defaultId = settings_.value(QString::fromLatin1(kDefaultAccountKey)).toString();
-  if (!ids.contains(defaultId)) {
-    defaultId = ids.contains(active) ? active : ids.first();
+  QString startup = settings_.value(QString::fromLatin1(kStartupAccountKey)).toString();
+  if (startup.isEmpty()) {
+    startup = settings_.value(QString::fromLatin1(kDefaultAccountKey)).toString();
   }
-  settings_.setValue(QString::fromLatin1(kDefaultAccountKey), defaultId);
-  settings_.setValue(QString::fromLatin1(kActiveAccountKey), defaultId);
+  if (!ids.contains(startup)) {
+    const QString legacy = settings_.value(QString::fromLatin1(kDefaultAccountKey)).toString();
+    if (ids.contains(legacy)) {
+      startup = legacy;
+    } else if (ids.contains(active)) {
+      startup = active;
+    } else {
+      startup = ids.first();
+    }
+  }
+  settings_.setValue(QString::fromLatin1(kStartupAccountKey), startup);
+  settings_.setValue(QString::fromLatin1(kDefaultAccountKey), startup);
+  settings_.setValue(QString::fromLatin1(kActiveAccountKey), startup);
   persist();
 }
 
@@ -220,8 +232,17 @@ QString Settings::activeAccountName() const {
 }
 
 QString Settings::defaultAccountId() const {
-  const QString id = settings_.value(QString::fromLatin1(kDefaultAccountKey)).toString();
-  return id.isEmpty() ? activeAccountId() : id;
+  const QStringList ids = accountIds();
+  const QString startup = settings_.value(QString::fromLatin1(kStartupAccountKey)).toString();
+  if (ids.contains(startup)) {
+    return startup;
+  }
+  const QString legacy = settings_.value(QString::fromLatin1(kDefaultAccountKey)).toString();
+  if (ids.contains(legacy)) {
+    return legacy;
+  }
+  const QString active = activeAccountId();
+  return ids.contains(active) ? active : firstAccountId();
 }
 
 QString Settings::defaultAccountName() const {
@@ -382,8 +403,8 @@ bool Settings::setDefaultAccount(const QString &id) {
   if (id.isEmpty() || !accountIds().contains(id)) {
     return false;
   }
+  settings_.setValue(QString::fromLatin1(kStartupAccountKey), id);
   settings_.setValue(QString::fromLatin1(kDefaultAccountKey), id);
-  settings_.setValue(QString::fromLatin1(kActiveAccountKey), id);
   persist();
   emit configurationChanged();
   return true;
@@ -395,19 +416,28 @@ bool Settings::removeAccount(const QString &id) {
     return false;
   }
   const QString active = activeAccountId();
-  const QString defaultId = defaultAccountId();
+  const QString startup = defaultAccountId();
   settings_.remove(accountGroupPath(id));
   const QStringList remaining = accountIds();
-  QString replacement = remaining.isEmpty() ? QString() : remaining.first();
-  if (!defaultId.isEmpty() && defaultId != id && remaining.contains(defaultId)) {
-    replacement = defaultId;
+  const QString first = remaining.isEmpty() ? QString() : remaining.first();
+
+  QString startupReplacement = first;
+  if (startup != id && remaining.contains(startup)) {
+    startupReplacement = startup;
+  } else if (active != id && remaining.contains(active)) {
+    startupReplacement = active;
   }
-  if (active == id) {
-    settings_.setValue(QString::fromLatin1(kActiveAccountKey), replacement);
+
+  QString activeReplacement = first;
+  if (active != id && remaining.contains(active)) {
+    activeReplacement = active;
+  } else if (startup != id && remaining.contains(startup)) {
+    activeReplacement = startup;
   }
-  if (defaultId == id) {
-    settings_.setValue(QString::fromLatin1(kDefaultAccountKey), replacement);
-  }
+
+  settings_.setValue(QString::fromLatin1(kStartupAccountKey), startupReplacement);
+  settings_.setValue(QString::fromLatin1(kDefaultAccountKey), startupReplacement);
+  settings_.setValue(QString::fromLatin1(kActiveAccountKey), activeReplacement);
   persist();
   emit configurationChanged();
   return true;

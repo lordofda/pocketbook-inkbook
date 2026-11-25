@@ -668,29 +668,19 @@ void AppController::newAccount() {
 }
 
 void AppController::switchAccount(const QString &id) {
-  if (!settings_->setDefaultAccount(id)) {
+  if (!settings_->switchAccount(id)) {
     setStatus(QStringLiteral("Could not switch account"));
     return;
   }
   resetForAccount();
-  setStatus(QStringLiteral("Using %1 as the startup account").arg(settings_->activeAccountName()));
+  setStatus(QStringLiteral("Using %1").arg(settings_->activeAccountName()));
   emit stateChanged();
 }
 
 void AppController::setDefaultAccount(const QString &id) {
-  const bool activeChanged = !id.isEmpty() && settings_->activeAccountId() != id;
-  const bool wasAccounts = view_ == QStringLiteral("accounts");
   if (!settings_->setDefaultAccount(id)) {
-    setStatus(QStringLiteral("Could not set default account"));
+    setStatus(QStringLiteral("Could not set startup account"));
     return;
-  }
-  if (activeChanged) {
-    resetForAccount(view_ == QStringLiteral("setup"));
-    if (wasAccounts) {
-      setView(QStringLiteral("accounts"));
-      selectedTitle_ = QStringLiteral("Accounts");
-      selectedMeta_.clear();
-    }
   }
   setStatus(QStringLiteral("Startup account set to %1").arg(settings_->defaultAccountName()));
   emit stateChanged();
