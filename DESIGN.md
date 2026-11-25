@@ -181,7 +181,7 @@ The status line shows `Working · <status>` while busy and `<status>` otherwise.
 
 The global top bar keeps Home, Back, Refresh, Accounts, Bar, and Exit as text. Library shortcuts for In progress, Offline, Recently added, and On deck live in a second row that is visible on every non-reader screen; the reader fallback uses the compact single-row header.
 
-In `v1.2.3`, top-bar `Bar:off` / `Bar:on` toggled the InkView system status bar; reader chrome was toggled by tapping the middle third. The current reader bottom bar keeps that top-bar behavior unchanged, but its own `Bar On/Off` control toggles reader chrome. The QML fallback bottom bar mirrors the native reader actions: left/right arrows, bold down-arrow Download, Sync, Bar On/Off, Exit, and Back. Series and Delete were removed from reading mode but remain available outside it.
+In `v1.2.3`, top-bar `Bar:off` / `Bar:on` toggled the InkView system status bar; reader chrome was toggled by tapping the middle third. The native reader bottom bar has no Bar control; status-bar changes are made from the QML/library top bar before entering the native reader. Reader chrome remains toggled by the center third, top-bar tap, or OK/Menu key. The QML fallback bottom bar keeps left/right arrows, bold down-arrow Download, Sync, Bar, Exit, and Back; its `Bar` toggles reader chrome because the fallback has no center-tap chrome toggle. Series and Delete were removed from reading mode but remain available outside it.
 
 ### 6.3 List rows
 
@@ -241,7 +241,7 @@ A custom QML implementation was chosen over `QtQuick.Controls.ScrollBar` to avoi
 - Left third: previous page.
 - Middle third: toggle native InkView bars.
 - Right third: next page.
-- Native bars show title, page position, completion state, left/right arrows, bold down-arrow Download, Sync, Bar On/Off, Exit, and Back controls.
+- Native bars show title, page position, completion state, left/right arrows, bold down-arrow Download, Sync, Exit, and Back controls.
 - Finishing a book marks it complete in Komga and appends `Finished` to the native header.
 - The QML next-book banner remains only as a fallback when native rendering fails.
 
@@ -321,10 +321,11 @@ The cleanup branch separates download state from reader state. Row downloads no 
 | Washed-out color on Kaleido 3 | Native reader loads RGB24 bitmaps, calls `adjustBitmapDefault()`, and refreshes through InkView; new caches store color bytes and record a color-cache flag. |
 | Startup account could not be changed reliably | Both **Use** and **Startup** now persist the startup account; editing remains active-only so it does not silently replace the startup account. |
 | Incomplete cache reset progress to page 1 on download | Opening a book now restores stored manifest progress regardless of full-download state, falls back to manifest page count when the list omits it, and keeps a server-reported page from collapsing to 1. |
-| Reader navigation icons | Previous/Next are left/right arrows, Download is a bold down arrow, Series and Delete were removed from reading mode, and Bar On/Off plus Exit were added. Bar On/Off toggles reader chrome, not the system status bar. |
+| Reader navigation icons | Previous/Next are left/right arrows, Download is a bold down arrow, Series and Delete were removed from reading mode, and Exit was added. The Bar control was removed from the native reader bar. |
 | Top bar text and shortcuts | Home, Refresh, and Accounts reverted to text because the icons were not well liked; In progress/Offline/Recently added/On deck moved into a second row. |
-| Fallback reader controls | The QML bottom controls mirror the native bar; the top fallback keeps its existing text controls and shows library shortcuts on every non-reader screen. |
+| Fallback reader controls | The QML bottom controls use the native actions plus a Bar action for reader chrome; the top fallback keeps its existing text controls and shows library shortcuts on every non-reader screen. |
 | Reader icon proportions | Previous/Next arrows are larger centered chevrons, and Download uses a compact square-proportioned arrow in both native and fallback reader bars. |
+| Native bar toggle reliability | Both direct and delegated status-bar toggles destabilized the InkView panel and native chrome, so the native Bar control was removed; use the QML/library top bar instead. |
 
 ## 10. Model update strategy
 

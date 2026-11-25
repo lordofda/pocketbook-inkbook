@@ -15,19 +15,17 @@ namespace {
 
 constexpr int kTopBarHeight = 72;
 constexpr int kButtonBarHeight = 92;
-constexpr int kButtonCount = 7;
+constexpr int kButtonCount = 6;
 
 int centerOffset(int total, int extent) {
   return std::max(0, (total - extent) / 2);
 }
 
-const char *buttonLabel(int index, bool chromeVisible) {
+const char *buttonLabel(int index) {
   switch (index) {
     case 3:
       return "Sync";
     case 4:
-      return chromeVisible ? "Bar:on" : "Bar:off";
-    case 5:
       return "Exit";
     default:
       return "Back";
@@ -194,10 +192,6 @@ int NativeReader::eventHandler(int type, int par1, int par2) {
             emit self->syncRequested();
             break;
           case 4:
-            self->chromeVisible_ = !self->chromeVisible_;
-            self->drawTimer_.start();
-            break;
-          case 5:
             emit self->exitRequested();
             break;
           default:
@@ -341,7 +335,7 @@ void NativeReader::drawChrome() {
     } else if (index == 2) {
       drawDownloadIcon(left + 4, barTop + 6, right - left - 8, kButtonBarHeight - 12);
     } else {
-      const QByteArray label(buttonLabel(index, chromeVisible_));
+      const QByteArray label(buttonLabel(index));
       DrawTextRect(left + 8, barTop + 10, right - left - 16, kButtonBarHeight - 20,
                    label.constData(), ALIGN_CENTER | VALIGN_MIDDLE);
     }
