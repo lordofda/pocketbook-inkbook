@@ -19,7 +19,6 @@ constexpr const char *kServerUrlKey = "server/url";
 constexpr const char *kApiKeyKey = "server/apiKey";
 constexpr const char *kFingerprintKey = "server/certFingerprint";
 constexpr const char *kPemKey = "server/certPem";
-constexpr const char *kGrayscaleKey = "reader/grayscale";
 constexpr const char *kHideStatusBarKey = "reader/hideStatusBar";
 constexpr const char *kActiveAccountKey = "general/activeAccount";
 constexpr const char *kDefaultAccountKey = "general/defaultAccount";
@@ -157,10 +156,6 @@ QString Settings::certPem() const {
   return accountValue(QStringLiteral("pem"));
 }
 
-bool Settings::grayscale() const {
-  return settings_.value(QString::fromLatin1(kGrayscaleKey), true).toBool();
-}
-
 bool Settings::hideStatusBar() const {
   return settings_.value(QString::fromLatin1(kHideStatusBarKey), true).toBool();
 }
@@ -260,12 +255,6 @@ void Settings::setCertFingerprint(const QString &value) {
 
 void Settings::setCertPem(const QString &value) {
   setAccountValue(QStringLiteral("pem"), value.trimmed());
-  persist();
-  emit configurationChanged();
-}
-
-void Settings::setGrayscale(bool value) {
-  settings_.setValue(QString::fromLatin1(kGrayscaleKey), value);
   persist();
   emit configurationChanged();
 }

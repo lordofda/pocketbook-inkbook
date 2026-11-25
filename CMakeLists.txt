@@ -29,6 +29,8 @@ pocketbook_add_app(komga-reader
     src/komga_api.cpp
     src/book_store.h
     src/book_store.cpp
+    src/native_reader.h
+    src/native_reader.cpp
     src/controller.h
     src/controller.cpp
   QRC qml/komga.qrc

@@ -1,12 +1,10 @@
 #include "book_store.h"
 
-#include <QBuffer>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
-#include <QImage>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
@@ -69,6 +67,7 @@ bool BookStore::loadManifest(const QString &bookId, BookManifest *manifest) cons
   manifest->pageCount = object.value(QStringLiteral("pageCount")).toInt();
   manifest->lastPage = object.value(QStringLiteral("lastPage")).toInt();
   manifest->pending = object.value(QStringLiteral("pending")).toBool();
+  manifest->color = object.value(QStringLiteral("color")).toBool(false);
   manifest->updatedAt = QDateTime::fromString(
       object.value(QStringLiteral("updatedAt")).toString(), Qt::ISODate);
 
@@ -103,6 +102,7 @@ bool BookStore::saveManifest(const BookManifest &manifest) {
   object.insert(QStringLiteral("pageCount"), manifest.pageCount);
   object.insert(QStringLiteral("lastPage"), manifest.lastPage);
   object.insert(QStringLiteral("pending"), manifest.pending);
+  object.insert(QStringLiteral("color"), manifest.color);
   object.insert(QStringLiteral("updatedAt"),
                 QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
   object.insert(QStringLiteral("files"), files);
@@ -126,6 +126,7 @@ bool BookStore::createManifest(const QString &bookId, const QString &title,
   manifest.id = bookId;
   manifest.title = title;
   manifest.pageCount = 0;
+  manifest.color = true;
   manifest.updatedAt = QDateTime::currentDateTimeUtc();
 
   QSet<int> currentPages;
@@ -161,11 +162,7 @@ bool BookStore::storePage(const QString &bookId, int page, const QString &mediaT
     return false;
   }
 
-  const QByteArray output = convertImage(data, mediaType);
-  QString extension = extensionFor(mediaType);
-  if (settings_->grayscale() && output != data && extension != QStringLiteral("png")) {
-    extension = QStringLiteral("jpg");
-  }
+  const QString extension = extensionFor(mediaType);
   const QString fileName =
       QStringLiteral("%1.%2").arg(page, 4, 10, QLatin1Char('0')).arg(extension);
 
@@ -173,7 +170,7 @@ bool BookStore::storePage(const QString &bookId, int page, const QString &mediaT
   if (!file.open(QIODevice::WriteOnly)) {
     return false;
   }
-  file.write(output);
+  file.write(data);
   if (!file.commit()) {
     return false;
   }
@@ -185,6 +182,7 @@ bool BookStore::storePage(const QString &bookId, int page, const QString &mediaT
   }
   manifest.fileNames.insert(page, fileName);
   manifest.mediaTypes.insert(page, mediaType);
+  manifest.color = true;
   return saveManifest(manifest);
 }
 
@@ -230,6 +228,11 @@ QString BookStore::pageSource(const QString &bookId, int page) const {
     return QString();
   }
   return QUrl::fromLocalFile(path).toString();
+}
+
+bool BookStore::isColorCache(const QString &bookId) const {
+  BookManifest manifest;
+  return loadManifest(bookId, &manifest) && manifest.color;
 }
 
 bool BookStore::removeBook(const QString &bookId) {
@@ -309,22 +312,4 @@ QString BookStore::extensionFor(const QString &mediaType) const {
     return QStringLiteral("gif");
   }
   return QStringLiteral("jpg");
-}
-
-QByteArray BookStore::convertImage(const QByteArray &data, const QString &mediaType) const {
-  if (!settings_->grayscale()) {
-    return data;
-  }
-  QImage image = QImage::fromData(data);
-  if (image.isNull()) {
-    return data;
-  }
-  image = image.convertToFormat(QImage::Format_Grayscale8);
-  const char *format = mediaType.toLower().contains(QStringLiteral("png")) ? "PNG" : "JPEG";
-  QBuffer buffer;
-  buffer.open(QIODevice::WriteOnly);
-  if (!image.save(&buffer, format, 88)) {
-    return data;
-  }
-  return buffer.data();
 }

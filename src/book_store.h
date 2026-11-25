@@ -16,6 +16,7 @@ struct BookManifest {
   int pageCount = 0;
   int lastPage = 0;
   bool pending = false;
+  bool color = false;
   QDateTime updatedAt;
   QHash<int, QString> fileNames;
   QHash<int, QString> mediaTypes;
@@ -33,6 +34,7 @@ class BookStore : public QObject {
   Q_INVOKABLE int localPage(const QString &bookId) const;
   Q_INVOKABLE bool hasPendingProgress(const QString &bookId) const;
   Q_INVOKABLE QString pageSource(const QString &bookId, int page) const;
+  Q_INVOKABLE bool isColorCache(const QString &bookId) const;
   Q_INVOKABLE bool removeBook(const QString &bookId);
   Q_INVOKABLE QStringList downloadedBookIds() const;
   Q_INVOKABLE QVariantMap cacheStats() const;
@@ -52,7 +54,6 @@ class BookStore : public QObject {
  private:
   QString manifestPath(const QString &bookId) const;
   QString extensionFor(const QString &mediaType) const;
-  QByteArray convertImage(const QByteArray &data, const QString &mediaType) const;
 
   Settings *settings_;
 };

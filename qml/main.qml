@@ -36,6 +36,7 @@ Window {
             if (controller.view !== root.lastView) {
                 root.lastView = controller.view
                 root.dismissKeyboard()
+                if (controller.view === "reader" && readerArea) readerArea.nativeDismissed = false
             }
             if (controller.view !== "reader") root.readerChrome = false
         }
@@ -587,11 +588,46 @@ Window {
         }
 
         Item {
+            id: readerArea
             anchors.fill: parent
             visible: controller.view === "reader"
 
+            property string nativePath: ""
+            property bool nativeDismissed: false
+
+            function syncNativePage() {
+                if (controller.pagePath !== readerArea.nativePath) {
+                    readerArea.nativePath = controller.pagePath
+                    readerArea.nativeDismissed = false
+                }
+                if (controller.view !== "reader" || controller.pagePath === "" || !controller.colorPage) {
+                    nativeReader.close()
+                } else if (!readerArea.nativeDismissed) {
+                    nativeReader.show(controller.pagePath)
+                }
+            }
+
+            function resumeNativePage() {
+                readerArea.nativeDismissed = false
+                readerArea.syncNativePage()
+            }
+
+            Connections {
+                target: controller
+                function onStateChanged() { readerArea.syncNativePage() }
+            }
+
+            Connections {
+                target: nativeReader
+                function onPreviousRequested() { controller.previousPage() }
+                function onNextRequested() { controller.nextPage() }
+                function onClosed() { readerArea.nativeDismissed = true }
+                function onLoadFailed() { root.readerChrome = true }
+            }
+
             Image {
                 id: pageImage
+                visible: controller.pageSource !== "" && controller.colorPage
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: parent.right
@@ -616,8 +652,11 @@ Window {
 
             Text {
                 anchors.centerIn: pageImage
-                visible: controller.pageSource === ""
-                text: "This book is not downloaded.\nPress Download to store it for offline reading."
+                visible: controller.view === "reader" &&
+                         (controller.pageSource === "" || (!controller.colorPage && !nativeReader.active))
+                text: controller.pageSource === ""
+                      ? "This book is not downloaded.\nPress Download to store it for offline reading."
+                      : "This offline copy was cached in grayscale.\nPress Download to rebuild it for vivid color."
                 font.pixelSize: 30
                 color: "#444444"
                 horizontalAlignment: Text.AlignHCenter
@@ -680,10 +719,11 @@ Window {
                 }
 
                 ActionButton {
-                    width: 90
+                    width: 100
                     height: 64
-                    text: appSettings.grayscale ? "Gray" : "Color"
-                    onClicked: controller.toggleGrayscale()
+                    text: "Vivid"
+                    active: controller.colorPage && !nativeReader.active
+                    onClicked: readerArea.resumeNativePage()
                 }
 
                 ActionButton {

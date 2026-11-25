@@ -42,12 +42,13 @@ class AppController : public QObject {
   Q_PROPERTY(QString selectedMeta READ selectedMeta NOTIFY stateChanged)
   Q_PROPERTY(QString currentBookId READ currentBookId NOTIFY stateChanged)
   Q_PROPERTY(QString pageSource READ pageSource NOTIFY stateChanged)
+  Q_PROPERTY(QString pagePath READ pagePath NOTIFY stateChanged)
+  Q_PROPERTY(bool colorPage READ colorPage NOTIFY stateChanged)
   Q_PROPERTY(int currentPage READ currentPage NOTIFY stateChanged)
   Q_PROPERTY(int pageCount READ pageCount NOTIFY stateChanged)
   Q_PROPERTY(int downloadedCount READ downloadedCount NOTIFY stateChanged)
   Q_PROPERTY(int downloadTotal READ downloadTotal NOTIFY stateChanged)
   Q_PROPERTY(bool currentBookDownloaded READ currentBookDownloaded NOTIFY stateChanged)
-  Q_PROPERTY(bool grayscale READ grayscale NOTIFY stateChanged)
   Q_PROPERTY(QString currentSeriesId READ currentSeriesId NOTIFY stateChanged)
   Q_PROPERTY(bool bookCompleted READ bookCompleted NOTIFY stateChanged)
   Q_PROPERTY(QString nextBookId READ nextBookId NOTIFY stateChanged)
@@ -75,12 +76,13 @@ class AppController : public QObject {
   QString selectedMeta() const;
   QString currentBookId() const;
   QString pageSource() const;
+  QString pagePath() const;
+  bool colorPage() const;
   int currentPage() const;
   int pageCount() const;
   int downloadedCount() const;
   int downloadTotal() const;
   bool currentBookDownloaded() const;
-  bool grayscale() const;
   QString currentSeriesId() const;
   bool bookCompleted() const;
   QString nextBookId() const;
@@ -125,7 +127,6 @@ class AppController : public QObject {
   Q_INVOKABLE void previousPage();
   Q_INVOKABLE void setPage(int page);
   Q_INVOKABLE void deleteCurrentBook();
-  Q_INVOKABLE void toggleGrayscale();
   Q_INVOKABLE void exit();
 
  signals:
@@ -206,6 +207,7 @@ class AppController : public QObject {
   QString currentBookId_;
   QString currentBookTitle_;
   QString pageSource_;
+  QString pagePath_;
   QString downloadTargetId_;
   QString downloadBookId_;
   QVector<int> downloadQueue_;
@@ -225,4 +227,5 @@ class AppController : public QObject {
   bool recentSeries_;
   bool onDeckBooks_;
   bool bookCompleted_;
+  bool colorPage_;
 };

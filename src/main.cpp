@@ -10,6 +10,7 @@
 #include "controller.h"
 #include "device.h"
 #include "komga_api.h"
+#include "native_reader.h"
 #include "settings.h"
 
 namespace {
@@ -44,15 +45,18 @@ int main(int argc, char *argv[]) {
   KomgaApi api(&settings);
   BookStore store(&settings);
   AppController controller(&settings, &api, &store);
+  NativeReader nativeReader(&settings);
 
   QQmlApplicationEngine engine;
   engine.addImportPath(QStringLiteral("/ebrmain/qml"));
   engine.rootContext()->setContextProperty(QStringLiteral("deviceInfo"), &deviceInfo);
   engine.rootContext()->setContextProperty(QStringLiteral("appSettings"), &settings);
   engine.rootContext()->setContextProperty(QStringLiteral("controller"), &controller);
+  engine.rootContext()->setContextProperty(QStringLiteral("nativeReader"), &nativeReader);
   engine.load(QUrl(QStringLiteral("qrc:/main.qml")));
   if (engine.rootObjects().isEmpty()) {
     return 1;
   }
+  nativeReader.setWindow(qobject_cast<QQuickWindow *>(engine.rootObjects().first()));
   return app.exec();
 }

@@ -62,7 +62,8 @@ AppController::AppController(Settings *settings, KomgaApi *api, BookStore *store
       offlineBook_(false),
       recentSeries_(false),
       onDeckBooks_(false),
-      bookCompleted_(false) {
+      bookCompleted_(false),
+      colorPage_(false) {
   connect(api_, &KomgaApi::librariesReceived, this,
           [this](int requestId, const QJsonArray &items) { onLibraries(items, requestId); });
   connect(api_, &KomgaApi::seriesReceived, this,
@@ -147,6 +148,8 @@ void AppController::clearReaderState() {
   currentBookId_.clear();
   currentBookTitle_.clear();
   pageSource_.clear();
+  pagePath_.clear();
+  colorPage_ = false;
   bookCompleted_ = false;
   nextBookId_.clear();
   nextBookTitle_.clear();
@@ -253,6 +256,14 @@ QString AppController::pageSource() const {
   return pageSource_;
 }
 
+QString AppController::pagePath() const {
+  return pagePath_;
+}
+
+bool AppController::colorPage() const {
+  return colorPage_;
+}
+
 int AppController::currentPage() const {
   return currentPage_;
 }
@@ -271,10 +282,6 @@ int AppController::downloadTotal() const {
 
 bool AppController::currentBookDownloaded() const {
   return store_->isDownloaded(currentBookId_);
-}
-
-bool AppController::grayscale() const {
-  return settings_->grayscale();
 }
 
 QString AppController::currentSeriesId() const {
@@ -474,6 +481,8 @@ void AppController::openSeriesForBookId(const QString &seriesId) {
   nextBookTitle_.clear();
   bookCompleted_ = false;
   pageSource_.clear();
+  pagePath_.clear();
+  colorPage_ = false;
   inProgressBooks_ = false;
   recentSeries_ = false;
   onDeckBooks_ = false;
@@ -530,6 +539,8 @@ void AppController::openInProgress() {
   bookModel_.clear();
   currentBookId_.clear();
   pageSource_.clear();
+  pagePath_.clear();
+  colorPage_ = false;
   inProgressBooks_ = true;
   recentSeries_ = false;
   onDeckBooks_ = false;
@@ -547,6 +558,8 @@ void AppController::goHome() {
   clearReaderState();
   currentBookId_.clear();
   pageSource_.clear();
+  pagePath_.clear();
+  colorPage_ = false;
   inProgressBooks_ = false;
   recentSeries_ = false;
   onDeckBooks_ = false;
@@ -564,6 +577,8 @@ void AppController::openRecent() {
   clearReaderState();
   currentBookId_.clear();
   pageSource_.clear();
+  pagePath_.clear();
+  colorPage_ = false;
   inProgressBooks_ = false;
   recentSeries_ = true;
   onDeckBooks_ = false;
@@ -581,6 +596,8 @@ void AppController::openOnDeck() {
   clearReaderState();
   currentBookId_.clear();
   pageSource_.clear();
+  pagePath_.clear();
+  colorPage_ = false;
   inProgressBooks_ = false;
   recentSeries_ = false;
   onDeckBooks_ = true;
@@ -697,6 +714,8 @@ void AppController::openOffline() {
   clearReaderState();
   currentBookId_.clear();
   pageSource_.clear();
+  pagePath_.clear();
+  colorPage_ = false;
   selectedTitle_ = QStringLiteral("Offline books");
   selectedMeta_.clear();
   populateOfflineBooks();
@@ -736,6 +755,8 @@ void AppController::deleteOfflineBook(const QString &id) {
   if (currentBookId_ == id) {
     currentBookId_.clear();
     pageSource_.clear();
+    pagePath_.clear();
+    colorPage_ = false;
     currentPage_ = 1;
     pageCount_ = 0;
   }
@@ -877,19 +898,14 @@ void AppController::deleteCurrentBook() {
   }
   store_->removeBook(currentBookId_);
   pageSource_.clear();
+  pagePath_.clear();
+  colorPage_ = false;
   downloadedCount_ = 0;
   downloadTotal_ = 0;
   refreshBooksModel();
   populateOfflineBooks();
   setView(offlineBook_ ? QStringLiteral("offline") : QStringLiteral("books"));
   setStatus(QStringLiteral("Offline copy removed"));
-  emit stateChanged();
-}
-
-void AppController::toggleGrayscale() {
-  settings_->setGrayscale(!settings_->grayscale());
-  setStatus(settings_->grayscale() ? QStringLiteral("Grayscale downloads enabled")
-                                   : QStringLiteral("Color downloads enabled"));
   emit stateChanged();
 }
 
@@ -984,8 +1000,11 @@ void AppController::onBook(const QJsonObject &book, int requestId) {
   if (serverPage > localPage) {
     store_->setProgress(bookId, serverPage, false);
     currentPage_ = total > 0 ? qBound(1, serverPage, total) : qMax(1, serverPage);
+    pagePath_ = store_->pagePath(bookId, currentPage_);
     pageSource_ = store_->pageSource(bookId, currentPage_);
+    colorPage_ = !pagePath_.isEmpty() && store_->isColorCache(bookId);
     bookCompleted_ = total > 0 && currentPage_ >= total;
+
     setStatus(QStringLiteral("Server is further ahead · moved to page %1").arg(currentPage_));
     emit stateChanged();
     return;
@@ -1231,6 +1250,8 @@ void AppController::resetForAccount(bool stayInSetup) {
   currentBookId_.clear();
   currentBookTitle_.clear();
   pageSource_.clear();
+  pagePath_.clear();
+  colorPage_ = false;
   bookCompleted_ = false;
   syncCheckId_ = 0;
   syncWriteId_ = 0;
@@ -1585,7 +1606,9 @@ void AppController::updatePage(int page) {
     page = 1;
   }
   currentPage_ = page;
+  pagePath_ = store_->pagePath(currentBookId_, page);
   pageSource_ = store_->pageSource(currentBookId_, page);
+  colorPage_ = !pagePath_.isEmpty() && store_->isColorCache(currentBookId_);
   bookCompleted_ = pageCount_ > 0 && page >= pageCount_;
   refreshNextBook();
   if (!pageSource_.isEmpty()) {

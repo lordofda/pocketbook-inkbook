@@ -4,9 +4,9 @@
 
 This document records the design decisions, architecture, UI behavior, and bug fixes that shaped the native Komga reader for PocketBook InkPad Color 3 / B288.
 
-The app is an experimental, AI-authored Qt Quick / C++ client. It is sideloaded as `komga-reader.app`, connects to a user-supplied Komga server, downloads whole books for offline reading, renders pages locally in grayscale, and syncs reading progress back to Komga.
+The app is an experimental, AI-authored Qt Quick / C++ client. It is sideloaded as `komga-reader.app`, connects to a user-supplied Komga server, downloads whole books for offline reading, renders color pages through InkView, and syncs reading progress back to Komga.
 
-The released line is `v1.2.3` on `main`. The unreleased `cleanup/code-review` branch rolls back slow color preprocessing, removes the InkView reader prototype, and applies the review fixes described below.
+The released line is `v1.2.4` on `main`. The `cleanup/code-review` branch applies the review fixes described below and adds the default-on InkView color renderer.
 
 ## 2. Product goals
 
@@ -58,10 +58,11 @@ QML does not create business objects. It binds to context properties and calls `
 |---|---|
 | `src/settings.cpp/.h` | Persisted INI settings, account records, active/default account, TLS pin storage, cache paths. |
 | `src/komga_api.cpp/.h` | Komga REST client, TLS fingerprint pinning, page downloads, progress updates. |
-| `src/book_store.cpp/.h` | Per-account offline book cache, manifests, page files, local progress, grayscale conversion. |
+| `src/book_store.cpp/.h` | Per-account offline book cache, manifests, page files, local progress, color cache tracking. |
 | `src/models.cpp/.h` | `ListModel` and typed `ListItem` roles used by all list screens. |
 | `src/controller.cpp/.h` | Application state machine, navigation, request routing, downloads, sync orchestration. |
 | `src/device.cpp/.h` | InkView screen/font bootstrap, status bar toggle, keyboard hiding. |
+| `src/native_reader.cpp/.h` | InkView bitmap color adjustment, full/partial refreshes, native reader input. |
 | `qml/main.qml` | Screen layout, navigation, dialogs, reader chrome, global input handling. |
 | `qml/ActionButton.qml` | Shared large e-ink button. |
 | `qml/ListRow.qml` | Reusable list row with optional Open series, Download, and Delete actions. |
@@ -128,7 +129,6 @@ Settings keys include:
 - `[accounts/<id>] apiKey`
 - `[accounts/<id>] fingerprint`
 - `[accounts/<id>] pem`
-- `[reader] grayscale`
 - `[reader] hideStatusBar`
 
 Legacy single-account installs are migrated to an account with id `default`, and the old `books/` cache is moved to `accounts/default/books/`.
@@ -286,8 +286,9 @@ The cleanup branch separates download state from reader state. Row downloads no 
 
 - Downloads are whole-book only.
 - `createManifest()` writes page numbers and media types.
-- Pages are downloaded sequentially into a `.raw` temporary file, converted to grayscale, then stored in the per-account book folder.
-- `BookStore` tracks local page, pending progress, downloaded count, and cached size.
+- Pages are downloaded sequentially into a `.raw` temporary file, then stored unmodified in the per-account book folder.
+- Manifest records include a color-cache flag; grayscale caches from older builds prompt for a fresh download.
+- `BookStore` tracks local page, pending progress, downloaded count, cached size, and color-cache mode.
 - Offline books can be opened and deleted without a server connection.
 - Deleting a downloaded book removes local page files; deleting an account removes only its settings, leaving the cache directory for manual recovery.
 
@@ -310,6 +311,7 @@ The cleanup branch separates download state from reader state. Row downloads no 
 | Download reset scroll position | Replaced full model rebuilds with in-place `markDownloaded()` data changes during and after download. |
 | Download marked book in progress | Row downloads keep separate target/title state; reader updates only for the active online book. |
 | Avoid force-pushing released tags | Used new incremental tags `v1.2.1` and `v1.2.2` instead of moving `v1.2.0`. |
+| Washed-out color on Kaleido 3 | Native reader loads RGB24 bitmaps, calls `adjustBitmapDefault()`, and refreshes through InkView; new caches store color bytes and record a color-cache flag. |
 
 ## 10. Model update strategy
 

@@ -2,7 +2,7 @@
 
 > **This is a work of AI.** The code, UI, and build setup in this repository were generated and implemented with AI assistance. Treat it as experimental software and review it before relying on it.
 
-A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It downloads whole books for offline reading, renders pages locally in grayscale, and syncs reading progress back to Komga.
+A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It downloads whole books for offline reading, renders color pages through InkView, and syncs reading progress back to Komga.
 
 **Tested on device:** PocketBook InkPad Color 3 (B288), including setup, downloads, offline reading, account switching, progress sync, and reader controls.
 
@@ -17,7 +17,7 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 - Search and A–Z title filtering on every list view, with a Done button to dismiss the on-screen keyboard.
 - Finishing a book marks it complete in Komga and offers the next book in the series when available.
 - Open series action on book rows and in the reader for downloading more of a series.
-- Whole-book offline downloads with local grayscale conversion.
+- Whole-book offline downloads with native InkView color rendering.
 - Offline books browser: open downloaded books without a server, delete local copies, and see cached size/count.
 - Progress sync:
   - Automatic debounced sync after page turns.
@@ -34,7 +34,7 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 3. Disconnect/Eject the device and launch **Komga Reader** from Applications.
 4. Enter the Komga HTTPS URL and API key, then verify and trust the displayed SHA-256 certificate fingerprint.
 
-The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/`. Existing single-account installs are migrated to a `default` account on first launch. If cached books do not appear after upgrading, see [CACHE_RECOVERY.md](CACHE_RECOVERY.md).
+The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/`. Existing single-account installs are migrated to a `default` account on first launch. If cached books do not appear after upgrading, see [CACHE_RECOVERY.md](CACHE_RECOVERY.md). Books cached by older grayscale builds must be downloaded again for vivid color.
 
 ## Security notes
 
@@ -75,7 +75,8 @@ QML validation:
 - `qml/AccountRow.qml` — account row with use/edit/delete actions.
 - `src/controller.cpp` — application state, navigation, downloads, sync logic.
 - `src/komga_api.cpp` — Komga REST client, TLS pinning, downloads.
-- `src/book_store.cpp` — offline cache, manifests, grayscale conversion.
+- `src/book_store.cpp` — offline cache, manifests, color cache tracking.
+- `src/native_reader.cpp` — InkView bitmap rendering and reader input.
 - `src/settings.cpp` — persisted settings.
 - `src/device.cpp` — InkView screen/font/bootstrap and system status bar control.
 - `dist/komga-reader.app` — compiled sideloadable binary.
