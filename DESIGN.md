@@ -6,7 +6,7 @@ This document records the design decisions, architecture, UI behavior, and bug f
 
 The app is an experimental, AI-authored Qt Quick / C++ client. It is sideloaded as `komga-reader.app`, connects to a user-supplied Komga server, downloads whole books for offline reading, renders color pages through InkView, and syncs reading progress back to Komga.
 
-The latest published page is the `v1.2.4` pre-release at `ee95897`. Local `main` has post-release commits through `3e4ff53`, and `review/codebase-hardening` carries the unreleased review fixes described below.
+The released line is `v1.2.5`, which includes the native InkView renderer, reader-chrome refinements, startup account persistence fix, and whole-codebase review hardening described below.
 
 ## 2. Product goals
 
@@ -378,15 +378,16 @@ Releases:
 | `v1.2.2` | `d3099b8` | Scroller buttons and download scroll-position fixes. |
 | `v1.2.3` | `20b6db2` | Color preprocessing, HQ refresh, account/default fixes, progress-push fix. |
 | `v1.2.4` | `ee95897` | Native InkView color rendering; published as a pre-release. |
+| `v1.2.5` | release commit | Reader-chrome refinements, startup account persistence, and whole-codebase review hardening. |
 
-`v1.2.0` has a tag but no public GitHub release page. `v1.2.1`, `v1.2.2`, and `v1.2.3` have release pages with zipped binaries. `v1.2.4` has a pre-release page, so GitHub still reports `v1.2.3` as the latest stable release.
+`v1.2.0` has a tag but no public GitHub release page. `v1.2.1`, `v1.2.2`, and `v1.2.3` have stable release pages with zipped binaries. `v1.2.4` remains a pre-release page; `v1.2.5` is the current stable release.
 
 ## 12. Branching state at time of writing
 
-- `main`: local line at `3e4ff53`, four commits past the `v1.2.4` pre-release. Not pushed or tagged after `v1.2.4`.
-- `test/inkview-reader`: local prototype branch with an experimental native InkView page renderer. Superseded by `v1.2.4`.
-- `cleanup/code-review`: same commit as `v1.2.4`; no longer the active cleanup branch.
-- `review/codebase-hardening`: unreleased branch for the whole-codebase review fixes.
+- `main`: released line at `v1.2.5`, pushed with all review-branch work merged.
+- `test/inkview-reader`: superseded InkView prototype branch; removed locally.
+- `cleanup/code-review`: former `v1.2.4` cleanup branch; removed locally.
+- `review/codebase-hardening`: completed review branch; removed locally after fast-forwarding `main`.
 
 ## 13. Known limitations
 
