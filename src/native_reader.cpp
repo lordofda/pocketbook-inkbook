@@ -13,8 +13,45 @@
 
 namespace {
 
+constexpr int kTopBarHeight = 72;
+constexpr int kButtonBarHeight = 92;
+constexpr int kButtonCount = 7;
+
 int centerOffset(int total, int extent) {
   return std::max(0, (total - extent) / 2);
+}
+
+const char *buttonLabel(int index, bool chromeVisible) {
+  switch (index) {
+    case 3:
+      return "Sync";
+    case 4:
+      return chromeVisible ? "Bar:on" : "Bar:off";
+    case 5:
+      return "Exit";
+    default:
+      return "Back";
+  }
+}
+
+void drawNavigationIcon(int index, int x, int y, int width, int height) {
+  DrawSymbol(x + centerOffset(width, 28), y + centerOffset(height, 28),
+             index == 0 ? ARROW_LEFT : ARROW_RIGHT);
+}
+
+void drawDownloadIcon(int x, int y, int width, int height) {
+  const int shaftWidth = std::max(6, width / 8);
+  const int shaftHeight = height * 2 / 5;
+  FillArea(x + centerOffset(width, shaftWidth), y + height / 6, shaftWidth, shaftHeight, BLACK);
+  const int headHeight = std::max(3, height / 3);
+  const int rows = headHeight;
+  const int halfBase = width * 3 / 10;
+  const int headTop = y + height / 6 + shaftHeight;
+  for (int row = 0; row < rows; ++row) {
+    const int half = halfBase * (rows - 1 - row) / std::max(1, rows - 1);
+    FillArea(x + centerOffset(width, half * 2 + 1), headTop + row * headHeight / rows,
+             half * 2 + 1, headHeight / rows + 1, BLACK);
+  }
 }
 
 }
@@ -57,7 +94,8 @@ void NativeReader::activate() {
   }
 }
 
-void NativeReader::show(const QString &path) {
+void NativeReader::show(const QString &path, int page, int pageCount, const QString &title,
+                        bool completed) {
   QString localPath = path;
   if (localPath.startsWith(QStringLiteral("file://"))) {
     const QUrl url(localPath);
@@ -72,10 +110,15 @@ void NativeReader::show(const QString &path) {
   if (!active_) {
     activate();
   }
-  if (path_ == localPath) {
+  if (path_ == localPath && page_ == page && pageCount_ == pageCount && title_ == title &&
+      completed_ == completed) {
     return;
   }
   path_ = localPath;
+  page_ = page;
+  pageCount_ = pageCount;
+  title_ = title;
+  completed_ = completed;
   drawTimer_.start();
 }
 
@@ -85,6 +128,7 @@ void NativeReader::close() {
     return;
   }
   active_ = false;
+  chromeVisible_ = false;
   if (previousHandler_ != nullptr) {
     SetEventHandler(previousHandler_);
     previousHandler_ = nullptr;
@@ -115,12 +159,47 @@ int NativeReader::eventHandler(int type, int par1, int par2) {
     case EVT_POINTERUP:
     case EVT_TOUCHUP: {
       const int width = std::max(ScreenWidth(), 1);
+      const int height = std::max(ScreenHeight(), 1);
+      if (self->chromeVisible_ && par2 >= height - kButtonBarHeight) {
+        const int index = qBound(0, par1 * kButtonCount / width, kButtonCount - 1);
+        switch (index) {
+          case 0:
+            emit self->previousRequested();
+            break;
+          case 1:
+            emit self->nextRequested();
+            break;
+          case 2:
+            emit self->downloadRequested();
+            break;
+          case 3:
+            emit self->syncRequested();
+            break;
+          case 4:
+            self->chromeVisible_ = !self->chromeVisible_;
+            self->drawTimer_.start();
+            break;
+          case 5:
+            emit self->exitRequested();
+            break;
+          default:
+            emit self->backRequested();
+            break;
+        }
+        return 1;
+      }
+      if (self->chromeVisible_ && par2 <= kTopBarHeight) {
+        self->chromeVisible_ = false;
+        self->drawTimer_.start();
+        return 1;
+      }
       if (par1 < width / 3) {
         emit self->previousRequested();
       } else if (par1 > width * 2 / 3) {
         emit self->nextRequested();
       } else {
-        self->close();
+        self->chromeVisible_ = !self->chromeVisible_;
+        self->drawTimer_.start();
       }
       return 1;
     }
@@ -134,8 +213,13 @@ int NativeReader::eventHandler(int type, int par1, int par2) {
         emit self->nextRequested();
         return 1;
       }
-      if (par1 == IV_KEY_BACK || par1 == IV_KEY_OK || par1 == IV_KEY_MENU) {
-        self->close();
+      if (par1 == IV_KEY_BACK) {
+        emit self->backRequested();
+        return 1;
+      }
+      if (par1 == IV_KEY_OK || par1 == IV_KEY_MENU) {
+        self->chromeVisible_ = !self->chromeVisible_;
+        self->drawTimer_.start();
         return 1;
       }
       return 0;
@@ -180,6 +264,7 @@ void NativeReader::draw() {
   adjustBitmapDefault(scaled);
   FillArea(0, 0, width, height, WHITE);
   DrawBitmap(centerOffset(width, scaled->width), centerOffset(height, scaled->height), scaled);
+  drawChrome();
 
   const bool hq = HQUpdateSupported() != 0;
   if (fullUpdateNeeded_) {
@@ -199,4 +284,52 @@ void NativeReader::draw() {
     std::free(source);
   }
   std::free(scaled);
+}
+
+void NativeReader::drawChrome() {
+  if (!chromeVisible_) {
+    return;
+  }
+
+  const int width = std::max(ScreenWidth(), 1);
+  const int height = std::max(ScreenHeight(), 1);
+  ifont *font = OpenFont(DEFAULTFONT, 22, 0);
+  if (font != nullptr) {
+    SetFont(font, BLACK);
+  }
+
+  FillArea(0, 0, width, kTopBarHeight, WHITE);
+  DrawRect(0, 0, width, kTopBarHeight, BLACK);
+  QString header = title_.isEmpty()
+      ? QStringLiteral("Komga Reader · %1/%2").arg(page_).arg(pageCount_)
+      : QStringLiteral("%1 · %2/%3").arg(title_).arg(page_).arg(pageCount_);
+  if (completed_) {
+    header.append(QStringLiteral(" · Finished"));
+  }
+  const QByteArray headerBytes = header.toUtf8();
+  DrawTextRect(16, 8, width - 32, kTopBarHeight - 16, headerBytes.constData(),
+               ALIGN_LEFT | VALIGN_MIDDLE);
+
+  const int barTop = height - kButtonBarHeight;
+  FillArea(0, barTop, width, kButtonBarHeight, WHITE);
+  DrawRect(0, barTop, width, kButtonBarHeight, BLACK);
+  for (int index = 0; index < kButtonCount; ++index) {
+    const int left = index * width / kButtonCount;
+    const int right = (index + 1) * width / kButtonCount;
+    DrawRect(left + 4, barTop + 6, right - left - 8, kButtonBarHeight - 12, BLACK);
+    if (index <= 1) {
+      drawNavigationIcon(index, left + 4, barTop + 6, right - left - 8,
+                         kButtonBarHeight - 12);
+    } else if (index == 2) {
+      drawDownloadIcon(left + 4, barTop + 6, right - left - 8, kButtonBarHeight - 12);
+    } else {
+      const QByteArray label(buttonLabel(index, chromeVisible_));
+      DrawTextRect(left + 8, barTop + 10, right - left - 16, kButtonBarHeight - 20,
+                   label.constData(), ALIGN_CENTER | VALIGN_MIDDLE);
+    }
+  }
+
+  if (font != nullptr) {
+    CloseFont(font);
+  }
 }

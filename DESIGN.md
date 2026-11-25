@@ -62,11 +62,12 @@ QML does not create business objects. It binds to context properties and calls `
 | `src/models.cpp/.h` | `ListModel` and typed `ListItem` roles used by all list screens. |
 | `src/controller.cpp/.h` | Application state machine, navigation, request routing, downloads, sync orchestration. |
 | `src/device.cpp/.h` | InkView screen/font bootstrap, status bar toggle, keyboard hiding. |
-| `src/native_reader.cpp/.h` | InkView bitmap color adjustment, full/partial refreshes, native reader input. |
+| `src/native_reader.cpp/.h` | InkView bitmap color adjustment, full/partial refreshes, native reader input and chrome. |
 | `qml/main.qml` | Screen layout, navigation, dialogs, reader chrome, global input handling. |
-| `qml/ActionButton.qml` | Shared large e-ink button. |
+| `qml/ActionButton.qml` | Shared large e-ink text button. |
+| `qml/IconButton.qml` | Shared canvas-drawn e-ink icon button. |
 | `qml/ListRow.qml` | Reusable list row with optional Open series, Download, and Delete actions. |
-| `qml/AccountRow.qml` | Account row with Use, Edit, and Delete actions. |
+| `qml/AccountRow.qml` | Account row with Startup, Use, Edit, and Delete actions. |
 | `qml/FilterBar.qml` | Search and A–Z filter strip with Done/keyboard dismissal. |
 | `qml/ListScroller.qml` | Custom Up/Down buttons and draggable scrollbar for list views. |
 | `qml/InputField.qml` | Shared labeled text input. |
@@ -133,16 +134,16 @@ Settings keys include:
 
 Legacy single-account installs are migrated to an account with id `default`, and the old `books/` cache is moved to `accounts/default/books/`.
 
-### 5.2 Active vs default account
+### 5.2 Active vs startup account
 
-A key design decision is to separate:
+The app distinguishes:
 
-- **Default account**: opened on startup.
+- **Startup account**: stored as the default and opened at launch.
 - **Active account**: the account currently loaded in the session.
 
-`switchAccount()` changes only the active account. `setDefaultAccount()` sets the startup default and makes that account active; `AppController` resets session state only when the active account actually changes. `ensureAccounts()` repairs invalid values and makes the default active at startup.
+`Settings::switchAccount()` remains active-only for editing. `AppController::switchAccount()` from the **Use** action and `AppController::setDefaultAccount()` from the **Startup** action both persist the startup account and make it active. Editing an account does not change the startup account. `ensureAccounts()` repairs invalid values and makes the startup account active at launch.
 
-The account editor shows both the active and default account names. The setup form offers **Set as default** when the active account is not already the default.
+The account editor shows active and startup account names. The setup form offers **Set as startup** when the active account is not already the startup account.
 
 ### 5.3 Security decisions
 
@@ -165,16 +166,22 @@ The status line shows `Working · <status>` while busy and `<status>` otherwise.
 
 | Screen | Content |
 |---|---|
-| Setup | Account name, default-account control, HTTPS URL, API key, certificate trust flow. |
-| Accounts | List of accounts with Use, Edit, Delete; default and active indicators; scroll controls. |
-| Libraries | Komga libraries; Home shortcuts for In progress, Offline, Recent, and On deck. |
+| Setup | Account name, startup-account control, HTTPS URL, API key, certificate trust flow. |
+| Accounts | List of accounts with Startup, Use, Edit, Delete; startup and active indicators; scroll controls. |
+| Libraries | Komga libraries; top-bar shortcuts for In progress, Offline, Recently added, and On deck. |
 | Series | Series in the selected library, filtered by `FilterBar`, with scroll controls. |
 | Books | Books in a series, sorted numerically; row actions Open series and Download. |
 | In progress | Books ordered by `readProgress.readDate`, descending. |
 | Recent | Recently added series from `/api/v1/series/new`. |
 | On deck | On-deck books from `/api/v1/books/ondeck`. |
 | Offline | Downloaded books with Delete action and cached-size summary. |
-| Reader | Page image, tap zones, reader controls, completion banner. |
+| Reader | InkView-rendered page, native tap zones/bars, mirrored QML fallback controls, completion banner. |
+
+### 6.2.1 Top bar and reader chrome
+
+The global top bar keeps Home, Back, Bar, and Exit text where Back and Bar are still text labels. Home uses a house icon, Refresh uses round arrows, and Accounts uses an account icon. Library shortcuts for In progress, Offline, Recently added, and On deck live in a second row of the top bar and are visible only on the Libraries screen.
+
+In `v1.2.3`, top-bar `Bar:off` / `Bar:on` toggled the InkView system status bar; reader chrome was toggled by tapping the middle third. The current reader bottom bar keeps that top-bar behavior unchanged, but its own `Bar On/Off` control toggles reader chrome. The QML fallback bottom bar mirrors the native reader actions: left/right arrows, bold down-arrow Download, Sync, Bar On/Off, Exit, and Back. Series and Delete were removed from reading mode but remain available outside it.
 
 ### 6.3 List rows
 
@@ -191,11 +198,11 @@ The row's tap area is limited to the left/text portion. Action buttons live in a
 `AccountRow.qml` shows name, server URL, and status:
 
 - `ACTIVE`
-- `DEFAULT` if not active but configured as startup default
+- `STARTUP` if not active but configured as startup default
 - `READY`
 - `SETUP NEEDED`
 
-Actions are **Use**, **Edit**, and **Delete**. Editing always opens the setup form, even for a fully configured account.
+Actions are **Startup**, **Use**, **Edit**, and **Delete**. Startup and Use both persist the startup account. Editing always opens the setup form, even for a fully configured account.
 
 ### 6.5 Delete confirmation
 
@@ -232,11 +239,11 @@ A custom QML implementation was chosen over `QtQuick.Controls.ScrollBar` to avoi
 ### 6.8 Reader behavior
 
 - Left third: previous page.
-- Middle third: toggle reader chrome.
+- Middle third: toggle native InkView bars.
 - Right third: next page.
-- Reader controls: Prev, page indicator, Next, Download, Sync, Open series, Gray/Color, Delete.
-- Finishing a book marks it complete in Komga and shows a next-in-series banner.
-- The banner offers **Open next** and **Open series**.
+- Native bars show title, page position, completion state, left/right arrows, bold down-arrow Download, Sync, Bar On/Off, Exit, and Back controls.
+- Finishing a book marks it complete in Komga and appends `Finished` to the native header.
+- The QML next-book banner remains only as a fallback when native rendering fails.
 
 ## 7. API and sync behavior
 
@@ -312,6 +319,11 @@ The cleanup branch separates download state from reader state. Row downloads no 
 | Download marked book in progress | Row downloads keep separate target/title state; reader updates only for the active online book. |
 | Avoid force-pushing released tags | Used new incremental tags `v1.2.1` and `v1.2.2` instead of moving `v1.2.0`. |
 | Washed-out color on Kaleido 3 | Native reader loads RGB24 bitmaps, calls `adjustBitmapDefault()`, and refreshes through InkView; new caches store color bytes and record a color-cache flag. |
+| Startup account could not be changed reliably | Both **Use** and **Startup** now persist the startup account; editing remains active-only so it does not silently replace the startup account. |
+| Incomplete cache reset progress to page 1 on download | Opening a book now restores stored manifest progress regardless of full-download state, falls back to manifest page count when the list omits it, and keeps a server-reported page from collapsing to 1. |
+| Reader navigation icons | Previous/Next are left/right arrows, Download is a bold down arrow, Series and Delete were removed from reading mode, and Bar On/Off plus Exit were added. Bar On/Off toggles reader chrome, not the system status bar. |
+| Top bar icons and shortcuts | Home is a house icon, Refresh uses round arrows, Accounts uses an account icon, Back and Bar stay text, and In progress/Offline/Recently added/On deck moved into a second library-only row. |
+| Fallback reader controls | The QML bottom controls mirror the native bar; the top fallback keeps its existing controls plus the new icons and library shortcuts. |
 
 ## 10. Model update strategy
 

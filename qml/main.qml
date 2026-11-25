@@ -36,7 +36,6 @@ Window {
             if (controller.view !== root.lastView) {
                 root.lastView = controller.view
                 root.dismissKeyboard()
-                if (controller.view === "reader" && readerArea) readerArea.nativeDismissed = false
             }
             if (controller.view !== "reader") root.readerChrome = false
         }
@@ -70,7 +69,7 @@ Window {
         anchors.left: parent.left
         anchors.right: parent.right
         visible: controller.view !== "reader" || root.readerChrome
-        height: 96
+        height: 152
         color: "#f4f4f4"
         border.color: "#cccccc"
         border.width: 1
@@ -78,7 +77,8 @@ Window {
         Text {
             anchors.left: parent.left
             anchors.leftMargin: 24
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.top: parent.top
+            anchors.topMargin: 14
             width: parent.width - 700
             text: root.headerTitle
             font.pixelSize: 34
@@ -90,13 +90,14 @@ Window {
         Row {
             anchors.right: parent.right
             anchors.rightMargin: 12
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.top: parent.top
+            anchors.topMargin: 8
             spacing: 8
 
-            ActionButton {
+            IconButton {
                 width: 90
                 height: 60
-                text: "Home"
+                icon: "home"
                 active: controller.view !== "setup" && controller.view !== "libraries"
                 onClicked: {
                     root.dismissKeyboard()
@@ -115,10 +116,10 @@ Window {
                 }
             }
 
-            ActionButton {
-                width: 110
+            IconButton {
+                width: 90
                 height: 60
-                text: "Refresh"
+                icon: "refresh"
                 active: controller.view !== "setup" && controller.view !== "reader" && controller.view !== "accounts"
                 onClicked: {
                     root.dismissKeyboard()
@@ -126,10 +127,10 @@ Window {
                 }
             }
 
-            ActionButton {
-                width: 120
+            IconButton {
+                width: 90
                 height: 60
-                text: "Accounts"
+                icon: "account"
                 active: controller.view !== "accounts"
                 onClicked: {
                     root.dismissKeyboard()
@@ -154,6 +155,56 @@ Window {
                 onClicked: {
                     root.dismissKeyboard()
                     controller.exit()
+                }
+            }
+        }
+
+        Row {
+            anchors.left: parent.left
+            anchors.leftMargin: 24
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 8
+            visible: controller.view === "libraries"
+            height: 60
+            spacing: 12
+
+            ActionButton {
+                width: 150
+                height: 60
+                text: "In progress"
+                onClicked: {
+                    root.dismissKeyboard()
+                    controller.openInProgress()
+                }
+            }
+
+            ActionButton {
+                width: 120
+                height: 60
+                text: "Offline"
+                onClicked: {
+                    root.dismissKeyboard()
+                    controller.openOffline()
+                }
+            }
+
+            ActionButton {
+                width: 120
+                height: 60
+                text: "Recently added"
+                onClicked: {
+                    root.dismissKeyboard()
+                    controller.openRecent()
+                }
+            }
+
+            ActionButton {
+                width: 120
+                height: 60
+                text: "On deck"
+                onClicked: {
+                    root.dismissKeyboard()
+                    controller.openOnDeck()
                 }
             }
         }
@@ -251,7 +302,7 @@ Window {
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "Default: " + appSettings.defaultAccountName
+                        text: "Startup: " + appSettings.defaultAccountName
                         font.pixelSize: 22
                         color: "#444444"
                     }
@@ -260,8 +311,8 @@ Window {
                         width: 210
                         height: 56
                         text: appSettings.defaultAccountId === appSettings.activeAccountId
-                              ? "Default account"
-                              : "Set as default"
+                              ? "Startup account"
+                              : "Set as startup"
                         active: appSettings.defaultAccountId !== appSettings.activeAccountId
                         onClicked: controller.setDefaultAccount(appSettings.activeAccountId)
                     }
@@ -346,7 +397,7 @@ Window {
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Active: " + appSettings.activeAccountName + " · Default: " + appSettings.defaultAccountName
+                    text: "Active: " + appSettings.activeAccountName + " · Startup: " + appSettings.defaultAccountName + " (Use/Startup changes startup)"
                     font.pixelSize: 24
                     color: "#444444"
                 }
@@ -470,48 +521,10 @@ Window {
             anchors.margins: 24
             visible: controller.view === "libraries" || controller.view === "series" || controller.view === "books" || controller.view === "inProgress" || controller.view === "offline" || controller.view === "recent" || controller.view === "onDeck"
 
-            Row {
-                id: homeSections
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                visible: controller.view === "libraries"
-                height: 64
-                spacing: 12
-
-                ActionButton {
-                    width: 160
-                    height: 64
-                    text: "In progress"
-                    onClicked: controller.openInProgress()
-                }
-
-                ActionButton {
-                    width: 160
-                    height: 64
-                    text: "Offline"
-                    onClicked: controller.openOffline()
-                }
-
-                ActionButton {
-                    width: 160
-                    height: 64
-                    text: "Recent"
-                    onClicked: controller.openRecent()
-                }
-
-                ActionButton {
-                    width: 160
-                    height: 64
-                    text: "On deck"
-                    onClicked: controller.openOnDeck()
-                }
-            }
-
             FilterBar {
                 id: listFilter
-                anchors.top: homeSections.visible ? homeSections.bottom : parent.top
-                anchors.topMargin: homeSections.visible ? 14 : 0
+                anchors.top: parent.top
+                anchors.topMargin: 0
                 anchors.left: parent.left
                 anchors.right: parent.right
                 externalText: controller.filterText
@@ -592,24 +605,14 @@ Window {
             anchors.fill: parent
             visible: controller.view === "reader"
 
-            property string nativePath: ""
-            property bool nativeDismissed: false
-
             function syncNativePage() {
-                if (controller.pagePath !== readerArea.nativePath) {
-                    readerArea.nativePath = controller.pagePath
-                    readerArea.nativeDismissed = false
-                }
                 if (controller.view !== "reader" || controller.pagePath === "" || !controller.colorPage) {
                     nativeReader.close()
-                } else if (!readerArea.nativeDismissed) {
-                    nativeReader.show(controller.pagePath)
+                } else {
+                    nativeReader.show(controller.pagePath, controller.currentPage,
+                                      controller.pageCount, controller.selectedTitle,
+                                      controller.bookCompleted)
                 }
-            }
-
-            function resumeNativePage() {
-                readerArea.nativeDismissed = false
-                readerArea.syncNativePage()
             }
 
             Connections {
@@ -621,39 +624,17 @@ Window {
                 target: nativeReader
                 function onPreviousRequested() { controller.previousPage() }
                 function onNextRequested() { controller.nextPage() }
-                function onClosed() { readerArea.nativeDismissed = true }
+                function onDownloadRequested() { controller.downloadCurrentBook() }
+                function onSyncRequested() { controller.syncCurrentProgress() }
+                function onExitRequested() { controller.exit() }
+                function onBackRequested() { controller.back() }
                 function onLoadFailed() { root.readerChrome = true }
             }
 
-            Image {
-                id: pageImage
-                visible: controller.pageSource !== "" && controller.colorPage
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: root.readerChrome ? readerControls.top : parent.bottom
-                anchors.margins: 16
-                source: controller.pageSource
-                fillMode: Image.PreserveAspectFit
-                asynchronous: true
-                smooth: false
-                cache: false
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: function (mouse) {
-                        root.dismissKeyboard()
-                        if (mouse.x < parent.width / 3) controller.previousPage()
-                        else if (mouse.x > parent.width * 2 / 3) controller.nextPage()
-                        else root.readerChrome = !root.readerChrome
-                    }
-                }
-            }
-
             Text {
-                anchors.centerIn: pageImage
+                anchors.centerIn: parent
                 visible: controller.view === "reader" &&
-                         (controller.pageSource === "" || (!controller.colorPage && !nativeReader.active))
+                         (controller.pageSource === "" || !controller.colorPage)
                 text: controller.pageSource === ""
                       ? "This book is not downloaded.\nPress Download to store it for offline reading."
                       : "This offline copy was cached in grayscale.\nPress Download to rebuild it for vivid color."
@@ -672,33 +653,33 @@ Window {
                 spacing: 6
                 layoutDirection: Qt.LeftToRight
 
-                ActionButton {
-                    width: 90
+                IconButton {
+                    width: 84
                     height: 64
-                    text: "Prev"
+                    icon: "left"
                     active: controller.pageSource !== ""
                     onClicked: controller.previousPage()
                 }
 
                 ActionButton {
-                    width: 120
+                    width: 110
                     height: 64
                     text: controller.currentPage + " / " + Math.max(controller.pageCount, 1)
                     active: false
                 }
 
-                ActionButton {
-                    width: 90
+                IconButton {
+                    width: 84
                     height: 64
-                    text: "Next"
+                    icon: "right"
                     active: controller.pageSource !== ""
                     onClicked: controller.nextPage()
                 }
 
-                ActionButton {
-                    width: 120
+                IconButton {
+                    width: 84
                     height: 64
-                    text: "Download"
+                    icon: "down"
                     onClicked: controller.downloadCurrentBook()
                 }
 
@@ -711,27 +692,24 @@ Window {
                 }
 
                 ActionButton {
-                    width: 140
-                    height: 64
-                    text: "Open series"
-                    active: controller.currentSeriesId !== ""
-                    onClicked: controller.openCurrentSeries()
-                }
-
-                ActionButton {
-                    width: 100
-                    height: 64
-                    text: "Vivid"
-                    active: controller.colorPage && !nativeReader.active
-                    onClicked: readerArea.resumeNativePage()
-                }
-
-                ActionButton {
                     width: 90
                     height: 64
-                    text: "Delete"
-                    active: controller.currentBookDownloaded
-                    onClicked: controller.deleteCurrentBook()
+                    text: root.readerChrome ? "Bar:on" : "Bar:off"
+                    onClicked: root.readerChrome = !root.readerChrome
+                }
+
+                ActionButton {
+                    width: 80
+                    height: 64
+                    text: "Exit"
+                    onClicked: controller.exit()
+                }
+
+                ActionButton {
+                    width: 80
+                    height: 64
+                    text: "Back"
+                    onClicked: controller.back()
                 }
             }
 

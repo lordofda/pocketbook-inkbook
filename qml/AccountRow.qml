@@ -51,8 +51,8 @@ Rectangle {
         anchors.leftMargin: 18
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 10
-        text: row.active && row.isDefault ? "ACTIVE · DEFAULT"
-              : (row.active ? "ACTIVE" : (row.isDefault ? "DEFAULT" : (row.configured ? "READY" : "SETUP NEEDED")))
+        text: row.active && row.isDefault ? "ACTIVE · STARTUP"
+              : (row.active ? "ACTIVE" : (row.isDefault ? "STARTUP" : (row.configured ? "READY" : "SETUP NEEDED")))
         font.pixelSize: 19
         font.bold: true
         color: row.active ? "#006600" : (row.isDefault ? "#114477" : "#777777")
@@ -76,7 +76,7 @@ Rectangle {
         ActionButton {
             width: 110
             height: 58
-            text: "Default"
+            text: "Startup"
             active: !row.isDefault
             onClicked: row.defaultClicked()
         }

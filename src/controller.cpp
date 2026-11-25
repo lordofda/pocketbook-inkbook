@@ -668,25 +668,31 @@ void AppController::newAccount() {
 }
 
 void AppController::switchAccount(const QString &id) {
-  if (!settings_->switchAccount(id)) {
+  if (!settings_->setDefaultAccount(id)) {
     setStatus(QStringLiteral("Could not switch account"));
     return;
   }
   resetForAccount();
-  setStatus(QStringLiteral("Switched to %1").arg(settings_->activeAccountName()));
+  setStatus(QStringLiteral("Using %1 as the startup account").arg(settings_->activeAccountName()));
   emit stateChanged();
 }
 
 void AppController::setDefaultAccount(const QString &id) {
   const bool activeChanged = !id.isEmpty() && settings_->activeAccountId() != id;
+  const bool wasAccounts = view_ == QStringLiteral("accounts");
   if (!settings_->setDefaultAccount(id)) {
     setStatus(QStringLiteral("Could not set default account"));
     return;
   }
   if (activeChanged) {
     resetForAccount(view_ == QStringLiteral("setup"));
+    if (wasAccounts) {
+      setView(QStringLiteral("accounts"));
+      selectedTitle_ = QStringLiteral("Accounts");
+      selectedMeta_.clear();
+    }
   }
-  setStatus(QStringLiteral("Default account set to %1").arg(settings_->defaultAccountName()));
+  setStatus(QStringLiteral("Startup account set to %1").arg(settings_->defaultAccountName()));
   emit stateChanged();
 }
 
@@ -986,7 +992,8 @@ void AppController::onBook(const QJsonObject &book, int requestId) {
   const QString bookId = action.id;
   const QJsonObject progress = book.value(QStringLiteral("readProgress")).toObject();
   const QJsonObject media = book.value(QStringLiteral("media")).toObject();
-  const int total = media.value(QStringLiteral("pagesCount")).toInt(store_->pageCount(bookId));
+  const int total = qMax(media.value(QStringLiteral("pagesCount")).toInt(),
+                         store_->pageCount(bookId));
   int serverPage = progress.value(QStringLiteral("page")).toInt();
   if (progress.value(QStringLiteral("completed")).toBool()) {
     serverPage = total;
@@ -999,6 +1006,9 @@ void AppController::onBook(const QJsonObject &book, int requestId) {
 
   if (serverPage > localPage) {
     store_->setProgress(bookId, serverPage, false);
+    if (pageCount_ <= 0 && serverPage > 0) {
+      pageCount_ = serverPage;
+    }
     currentPage_ = total > 0 ? qBound(1, serverPage, total) : qMax(1, serverPage);
     pagePath_ = store_->pagePath(bookId, currentPage_);
     pageSource_ = store_->pageSource(bookId, currentPage_);
@@ -1509,12 +1519,12 @@ void AppController::openBookDetails(const QString &id, const QString &title,
   onDeckBooks_ = false;
   selectedTitle_ = title;
   selectedMeta_ = seriesTitle;
-  pageCount_ = bookPageCount;
+  pageCount_ = bookPageCount > 0 ? bookPageCount : store_->pageCount(id);
   downloadTotal_ = store_->pageCount(id);
   downloadedCount_ = store_->downloadedCount(id);
   const bool downloaded = store_->isDownloaded(id);
   const int storedPage = store_->localPage(id);
-  updatePage(downloaded && storedPage > 0 ? storedPage : (page > 0 ? page : 1));
+  updatePage(storedPage > 0 ? storedPage : (page > 0 ? page : 1));
   setView(QStringLiteral("reader"));
   setStatus(downloaded ? QStringLiteral("Ready to read")
                        : QStringLiteral("Download this book to read offline"));

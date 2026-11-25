@@ -22,7 +22,8 @@ class NativeReader : public QObject {
   bool active() const;
   void setWindow(QQuickWindow *window);
 
-  Q_INVOKABLE void show(const QString &path);
+  Q_INVOKABLE void show(const QString &path, int page, int pageCount, const QString &title,
+                        bool completed);
   Q_INVOKABLE void close();
 
  signals:
@@ -31,18 +32,28 @@ class NativeReader : public QObject {
   void loadFailed();
   void previousRequested();
   void nextRequested();
+  void downloadRequested();
+  void syncRequested();
+  void exitRequested();
+  void backRequested();
 
  private:
   static int eventHandler(int type, int par1, int par2);
   void draw();
+  void drawChrome();
   void activate();
 
   Settings *settings_;
   QQuickWindow *window_ = nullptr;
   QString path_;
+  QString title_;
+  int page_ = 1;
+  int pageCount_ = 1;
   iv_handler previousHandler_ = nullptr;
   QTimer drawTimer_;
   bool active_ = false;
+  bool completed_ = false;
+  bool chromeVisible_ = false;
   bool fullUpdateNeeded_ = false;
 
   static NativeReader *instance_;

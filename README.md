@@ -11,12 +11,12 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 - Native PocketBook app, sideloaded as `komga-reader.app`.
 - Komga HTTPS connection with runtime-entered API key.
 - First-connection TLS certificate fingerprint pinning; no global SSL bypass.
-- Multiple Komga accounts: add, edit, switch, set default, and delete from the **Accounts** top menu; each account has its own URL, API key, TLS pin, and book cache. **Save** stores edited details, **Connect** saves and tests them, and **Default** sets the startup account.
-- Library, series, books, and in-progress browsing from the Home sections.
+- Multiple Komga accounts: add, edit, switch, and delete from the **Accounts** top menu; each account has its own URL, API key, TLS pin, and book cache. **Save** stores edited details, **Connect** saves and tests them, and either **Use** or **Startup** makes that account the one opened at startup.
+- Library, series, and books browsing, with In progress, Offline, Recently added, and On deck shortcuts in the top bar.
 - Recently added series and on-deck books, using Komga's `/api/v1/series/new` and `/api/v1/books/ondeck` views.
 - Search and A–Z title filtering on every list view, with a Done button to dismiss the on-screen keyboard.
 - Finishing a book marks it complete in Komga and offers the next book in the series when available.
-- Open series action on book rows and in the reader for downloading more of a series.
+- Open series action on book rows for downloading more of a series.
 - Whole-book offline downloads with native InkView color rendering.
 - Offline books browser: open downloaded books without a server, delete local copies, and see cached size/count.
 - Progress sync:
@@ -24,8 +24,9 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
   - Explicit page turns push the local page to Komga, so the server cannot pull the reader back to a newer page immediately.
   - Manual `Sync` button in the reader.
   - When opening a book, the app checks Komga's stored progress. If the server is further ahead, the local position moves to the server page; otherwise the local page is pushed.
-- Immersive reader: header, footer, progress bar, and buttons are hidden until the middle third of the page is tapped. Left/right thirds turn pages.
-- InkView system status bar can be hidden/shown from the top menu (`Bar:off` / `Bar:on`). Default is hidden.
+- Native InkView reader: left/right thirds turn pages; a center tap toggles native bars with left/right arrows, a bold down-arrow download action, Sync, Bar On/Off, Exit, and Back.
+- Top bar uses a house icon for Home, round arrows for Refresh, and an account icon for Accounts; Back and Bar remain text.
+- `Bar On/Off` in the reader toggles reader chrome; the top-bar `Bar:off` / `Bar:on` still toggles the InkView system status bar. Default is hidden.
 
 ## Install
 
