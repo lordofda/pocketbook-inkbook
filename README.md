@@ -25,7 +25,7 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
   - Manual `Sync` button in the reader.
   - When opening a book, the app checks Komga's stored progress. If the server is further ahead, the local position moves to the server page; otherwise the local page is pushed.
 - Native InkView reader: left/right thirds turn pages; a center tap toggles native bars with left/right arrows, a bold down-arrow download action, Sync, Bar On/Off, Exit, and Back.
-- Top bar uses a house icon for Home, round arrows for Refresh, and an account icon for Accounts; Back and Bar remain text.
+- Top bar keeps Home, Back, Refresh, Accounts, Bar, and Exit as text; In progress, Offline, Recently added, and On deck appear in a second row on non-reader screens.
 - `Bar On/Off` in the reader toggles reader chrome; the top-bar `Bar:off` / `Bar:on` still toggles the InkView system status bar. Default is hidden.
 
 ## Install

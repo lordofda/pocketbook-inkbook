@@ -35,21 +35,39 @@ const char *buttonLabel(int index, bool chromeVisible) {
 }
 
 void drawNavigationIcon(int index, int x, int y, int width, int height) {
-  DrawSymbol(x + centerOffset(width, 28), y + centerOffset(height, 28),
-             index == 0 ? ARROW_LEFT : ARROW_RIGHT);
+  const int size = std::min(width, height) * 3 / 5;
+  const int left = x + centerOffset(width, size);
+  const int top = y + centerOffset(height, size);
+  const int thickness = std::max(3, size / 9);
+  for (int offset = 0; offset < thickness; ++offset) {
+    if (index == 0) {
+      DrawLine(left + size * 3 / 4 + offset, top + size / 6,
+               left + size / 4 + offset, top + size / 2, BLACK);
+      DrawLine(left + size / 4 + offset, top + size / 2,
+               left + size * 3 / 4 + offset, top + size * 5 / 6, BLACK);
+    } else {
+      DrawLine(left + size / 4 + offset, top + size / 6,
+               left + size * 3 / 4 + offset, top + size / 2, BLACK);
+      DrawLine(left + size * 3 / 4 + offset, top + size / 2,
+               left + size / 4 + offset, top + size * 5 / 6, BLACK);
+    }
+  }
 }
 
 void drawDownloadIcon(int x, int y, int width, int height) {
-  const int shaftWidth = std::max(6, width / 8);
-  const int shaftHeight = height * 2 / 5;
-  FillArea(x + centerOffset(width, shaftWidth), y + height / 6, shaftWidth, shaftHeight, BLACK);
-  const int headHeight = std::max(3, height / 3);
-  const int rows = headHeight;
-  const int halfBase = width * 3 / 10;
-  const int headTop = y + height / 6 + shaftHeight;
+  const int size = std::min(width, height) * 3 / 4;
+  const int left = x + centerOffset(width, size);
+  const int top = y + centerOffset(height, size);
+  const int shaftWidth = std::max(5, size / 6);
+  const int shaftHeight = size / 2;
+  FillArea(left + centerOffset(size, shaftWidth), top + size / 8, shaftWidth, shaftHeight, BLACK);
+  const int headWidth = size * 3 / 4;
+  const int headHeight = size / 3;
+  const int headTop = top + size / 8 + shaftHeight - headHeight / 2;
+  const int rows = std::max(3, headHeight);
   for (int row = 0; row < rows; ++row) {
-    const int half = halfBase * (rows - 1 - row) / std::max(1, rows - 1);
-    FillArea(x + centerOffset(width, half * 2 + 1), headTop + row * headHeight / rows,
+    const int half = headWidth * (rows - 1 - row) / (2 * std::max(1, rows - 1));
+    FillArea(left + centerOffset(size, half * 2 + 1), headTop + row * headHeight / rows,
              half * 2 + 1, headHeight / rows + 1, BLACK);
   }
 }

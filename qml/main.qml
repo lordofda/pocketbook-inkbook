@@ -69,7 +69,7 @@ Window {
         anchors.left: parent.left
         anchors.right: parent.right
         visible: controller.view !== "reader" || root.readerChrome
-        height: 152
+        height: controller.view === "reader" ? 96 : 152
         color: "#f4f4f4"
         border.color: "#cccccc"
         border.width: 1
@@ -94,10 +94,10 @@ Window {
             anchors.topMargin: 8
             spacing: 8
 
-            IconButton {
+            ActionButton {
                 width: 90
                 height: 60
-                icon: "home"
+                text: "Home"
                 active: controller.view !== "setup" && controller.view !== "libraries"
                 onClicked: {
                     root.dismissKeyboard()
@@ -116,10 +116,10 @@ Window {
                 }
             }
 
-            IconButton {
-                width: 90
+            ActionButton {
+                width: 110
                 height: 60
-                icon: "refresh"
+                text: "Refresh"
                 active: controller.view !== "setup" && controller.view !== "reader" && controller.view !== "accounts"
                 onClicked: {
                     root.dismissKeyboard()
@@ -127,10 +127,10 @@ Window {
                 }
             }
 
-            IconButton {
-                width: 90
+            ActionButton {
+                width: 120
                 height: 60
-                icon: "account"
+                text: "Accounts"
                 active: controller.view !== "accounts"
                 onClicked: {
                     root.dismissKeyboard()
@@ -164,7 +164,7 @@ Window {
             anchors.leftMargin: 24
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 8
-            visible: controller.view === "libraries"
+            visible: controller.view !== "reader"
             height: 60
             spacing: 12
 

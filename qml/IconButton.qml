@@ -39,7 +39,6 @@ Rectangle {
             ctx.clearRect(0, 0, width, height)
             ctx.strokeStyle = button.active ? "#111111" : "#666666"
             ctx.fillStyle = ctx.strokeStyle
-            ctx.lineWidth = 4
             ctx.lineCap = "round"
             ctx.lineJoin = "round"
 
@@ -47,70 +46,34 @@ Rectangle {
             var h = height
             var cx = w / 2
             var cy = h / 2
-
-            function arrowHead(x, y, direction, size) {
-                ctx.beginPath()
-                ctx.moveTo(x + size * Math.cos(direction), y + size * Math.sin(direction))
-                ctx.lineTo(x + size * Math.cos(direction + 2.5), y + size * Math.sin(direction + 2.5))
-                ctx.lineTo(x + size * Math.cos(direction - 2.5), y + size * Math.sin(direction - 2.5))
-                ctx.closePath()
-                ctx.fill()
-            }
+            var size = Math.min(w, h)
 
             if (button.icon === "left" || button.icon === "right") {
-                ctx.lineWidth = 5
+                ctx.lineWidth = Math.max(6, size / 7)
                 ctx.beginPath()
                 if (button.icon === "left") {
-                    ctx.moveTo(w * 0.68, h * 0.18)
-                    ctx.lineTo(w * 0.28, cy)
-                    ctx.lineTo(w * 0.68, h * 0.82)
+                    ctx.moveTo(w * 0.76, h * 0.16)
+                    ctx.lineTo(w * 0.22, cy)
+                    ctx.lineTo(w * 0.76, h * 0.84)
                 } else {
-                    ctx.moveTo(w * 0.32, h * 0.18)
-                    ctx.lineTo(w * 0.72, cy)
-                    ctx.lineTo(w * 0.32, h * 0.82)
+                    ctx.moveTo(w * 0.24, h * 0.16)
+                    ctx.lineTo(w * 0.78, cy)
+                    ctx.lineTo(w * 0.24, h * 0.84)
                 }
                 ctx.stroke()
             } else if (button.icon === "down") {
-                var shaftWidth = Math.max(6, w * 0.14)
-                var shaftHeight = h * 0.42
-                ctx.fillRect(cx - shaftWidth / 2, h * 0.14, shaftWidth, shaftHeight)
-                var headHeight = h * 0.34
-                var rows = Math.max(3, Math.round(headHeight))
-                var headTop = h * 0.5
-                var halfBase = w * 0.34
-                for (var row = 0; row < rows; ++row) {
-                    var half = halfBase * (rows - 1 - row) / Math.max(1, rows - 1)
-                    ctx.fillRect(cx - half, headTop + row * headHeight / rows,
-                                 half * 2 + 1, headHeight / rows + 1)
-                }
-            } else if (button.icon === "home") {
+                var shaftWidth = size / 6
+                var shaftHeight = size / 2
+                ctx.fillRect(cx - shaftWidth / 2, h * 0.12, shaftWidth, shaftHeight)
+                var headWidth = size * 0.76
+                var headHeight = size * 0.34
+                var headTop = h * 0.12 + shaftHeight - headHeight / 2
                 ctx.beginPath()
-                ctx.moveTo(w * 0.08, h * 0.5)
-                ctx.lineTo(cx, h * 0.14)
-                ctx.lineTo(w * 0.92, h * 0.5)
-                ctx.stroke()
-                ctx.strokeRect(w * 0.22, h * 0.48, w * 0.56, h * 0.4)
-            } else if (button.icon === "refresh") {
-                var radius = w * 0.34
-                var firstEnd = Math.PI * 0.35
-                var secondEnd = Math.PI * 1.35
-                ctx.beginPath()
-                ctx.arc(cx, cy, radius, -Math.PI * 0.8, firstEnd)
-                ctx.stroke()
-                arrowHead(cx + radius * Math.cos(firstEnd), cy + radius * Math.sin(firstEnd),
-                          firstEnd + Math.PI / 2, 9)
-                ctx.beginPath()
-                ctx.arc(cx, cy, radius, Math.PI * 0.2, secondEnd)
-                ctx.stroke()
-                arrowHead(cx + radius * Math.cos(secondEnd), cy + radius * Math.sin(secondEnd),
-                          secondEnd + Math.PI / 2, 9)
-            } else if (button.icon === "account") {
-                ctx.beginPath()
-                ctx.arc(cx, h * 0.3, w * 0.16, 0, 2 * Math.PI)
-                ctx.stroke()
-                ctx.beginPath()
-                ctx.arc(cx, h * 0.9, w * 0.32, Math.PI, 0, true)
-                ctx.stroke()
+                ctx.moveTo(cx - headWidth / 2, headTop)
+                ctx.lineTo(cx + headWidth / 2, headTop)
+                ctx.lineTo(cx, headTop + headHeight)
+                ctx.closePath()
+                ctx.fill()
             }
         }
     }

@@ -179,7 +179,7 @@ The status line shows `Working · <status>` while busy and `<status>` otherwise.
 
 ### 6.2.1 Top bar and reader chrome
 
-The global top bar keeps Home, Back, Bar, and Exit text where Back and Bar are still text labels. Home uses a house icon, Refresh uses round arrows, and Accounts uses an account icon. Library shortcuts for In progress, Offline, Recently added, and On deck live in a second row of the top bar and are visible only on the Libraries screen.
+The global top bar keeps Home, Back, Refresh, Accounts, Bar, and Exit as text. Library shortcuts for In progress, Offline, Recently added, and On deck live in a second row that is visible on every non-reader screen; the reader fallback uses the compact single-row header.
 
 In `v1.2.3`, top-bar `Bar:off` / `Bar:on` toggled the InkView system status bar; reader chrome was toggled by tapping the middle third. The current reader bottom bar keeps that top-bar behavior unchanged, but its own `Bar On/Off` control toggles reader chrome. The QML fallback bottom bar mirrors the native reader actions: left/right arrows, bold down-arrow Download, Sync, Bar On/Off, Exit, and Back. Series and Delete were removed from reading mode but remain available outside it.
 
@@ -322,8 +322,9 @@ The cleanup branch separates download state from reader state. Row downloads no 
 | Startup account could not be changed reliably | Both **Use** and **Startup** now persist the startup account; editing remains active-only so it does not silently replace the startup account. |
 | Incomplete cache reset progress to page 1 on download | Opening a book now restores stored manifest progress regardless of full-download state, falls back to manifest page count when the list omits it, and keeps a server-reported page from collapsing to 1. |
 | Reader navigation icons | Previous/Next are left/right arrows, Download is a bold down arrow, Series and Delete were removed from reading mode, and Bar On/Off plus Exit were added. Bar On/Off toggles reader chrome, not the system status bar. |
-| Top bar icons and shortcuts | Home is a house icon, Refresh uses round arrows, Accounts uses an account icon, Back and Bar stay text, and In progress/Offline/Recently added/On deck moved into a second library-only row. |
-| Fallback reader controls | The QML bottom controls mirror the native bar; the top fallback keeps its existing controls plus the new icons and library shortcuts. |
+| Top bar text and shortcuts | Home, Refresh, and Accounts reverted to text because the icons were not well liked; In progress/Offline/Recently added/On deck moved into a second row. |
+| Fallback reader controls | The QML bottom controls mirror the native bar; the top fallback keeps its existing text controls and shows library shortcuts on every non-reader screen. |
+| Reader icon proportions | Previous/Next arrows are larger centered chevrons, and Download uses a compact square-proportioned arrow in both native and fallback reader bars. |
 
 ## 10. Model update strategy
 
