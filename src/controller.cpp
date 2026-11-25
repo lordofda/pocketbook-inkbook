@@ -51,6 +51,7 @@ AppController::AppController(Settings *settings, KomgaApi *api, BookStore *store
       activeDownloadId_(0),
       syncCheckId_(0),
       syncWriteId_(0),
+      progressRetryCount_(0),
       requestEpoch_(0),
       currentPage_(1),
       pageCount_(0),
@@ -108,7 +109,9 @@ AppController::AppController(Settings *settings, KomgaApi *api, BookStore *store
   connect(settings_, &Settings::configurationChanged, this, &AppController::stateChanged);
   connect(store_, &BookStore::storeChanged, this, &AppController::stateChanged);
   connect(&syncTimer_, &QTimer::timeout, this, &AppController::syncPendingProgress);
+  connect(&filterTimer_, &QTimer::timeout, this, &AppController::applyFilter);
   syncTimer_.setSingleShot(true);
+  filterTimer_.setSingleShot(true);
   applyStatusBar();
 
   resetForAccount();
@@ -134,6 +137,11 @@ bool AppController::isCurrent(const PendingAction &action) const {
 }
 
 void AppController::clearReaderState() {
+  const QString pendingBookId = currentBookId_;
+  if (!pendingBookId.isEmpty() && !offlineBook_ && settings_->configured() &&
+      store_->hasPendingProgress(pendingBookId)) {
+    beginProgressSync(false);
+  }
   ++requestEpoch_;
   syncTimer_.stop();
   if (syncCheckId_ > 0) {
@@ -144,7 +152,15 @@ void AppController::clearReaderState() {
   }
   syncCheckId_ = 0;
   syncWriteId_ = 0;
-  clearDownloads();
+  progressRetryCount_ = 0;
+  for (auto it = pending_.begin(); it != pending_.end(); ++it) {
+    if (it.value().name == QStringLiteral("pages") ||
+        it.value().name == QStringLiteral("download") ||
+        it.value().name == QStringLiteral("syncCheck") ||
+        it.value().name == QStringLiteral("sync")) {
+      it.value().epoch = requestEpoch_;
+    }
+  }
   currentBookId_.clear();
   currentBookTitle_.clear();
   pageSource_.clear();
@@ -159,7 +175,6 @@ void AppController::clearReaderState() {
   downloadedCount_ = 0;
   offlineBook_ = false;
   onDeckBooks_ = false;
-  downloadTargetId_.clear();
 }
 
 void AppController::beginDownload(const QString &id, const QString &title) {
@@ -203,17 +218,34 @@ QString AppController::filterText() const {
 }
 
 void AppController::setFilterText(const QString &text) {
-  if (filterText_ == text.trimmed()) {
+  const QString normalized = text.trimmed();
+  if (filterText_ == normalized && !filterPrefix_) {
     return;
   }
-  filterText_ = text.trimmed();
-  libraryModel_.setFilter(filterText_);
-  seriesModel_.setFilter(filterText_);
-  bookModel_.setFilter(filterText_);
-  offlineModel_.setFilter(filterText_);
-  newSeriesModel_.setFilter(filterText_);
-  onDeckModel_.setFilter(filterText_);
+  filterText_ = normalized;
+  filterPrefix_ = false;
+  filterTimer_.start(180);
   emit stateChanged();
+}
+
+void AppController::setFilterPrefix(const QString &text) {
+  const QString normalized = text.trimmed();
+  if (filterText_ == normalized && filterPrefix_) {
+    return;
+  }
+  filterText_ = normalized;
+  filterPrefix_ = true;
+  filterTimer_.start(0);
+  emit stateChanged();
+}
+
+void AppController::applyFilter() {
+  libraryModel_.setFilter(filterText_, filterPrefix_);
+  seriesModel_.setFilter(filterText_, filterPrefix_);
+  bookModel_.setFilter(filterText_, filterPrefix_);
+  offlineModel_.setFilter(filterText_, filterPrefix_);
+  newSeriesModel_.setFilter(filterText_, filterPrefix_);
+  onDeckModel_.setFilter(filterText_, filterPrefix_);
 }
 
 QString AppController::view() const {
@@ -476,6 +508,7 @@ void AppController::openSeriesForBookId(const QString &seriesId) {
     return;
   }
   currentSeriesId_ = seriesId;
+  currentLibraryId_.clear();
   currentBookId_.clear();
   nextBookId_.clear();
   nextBookTitle_.clear();
@@ -892,20 +925,19 @@ void AppController::deleteCurrentBook() {
   if (currentBookId_.isEmpty()) {
     return;
   }
-  store_->removeBook(currentBookId_);
-  pageSource_.clear();
-  pagePath_.clear();
-  colorPage_ = false;
-  downloadedCount_ = 0;
-  downloadTotal_ = 0;
+  const QString removedId = currentBookId_;
+  const bool wasOffline = offlineBook_;
+  clearReaderState();
+  store_->removeBook(removedId);
   refreshBooksModel();
   populateOfflineBooks();
-  setView(offlineBook_ ? QStringLiteral("offline") : QStringLiteral("books"));
+  setView(wasOffline ? QStringLiteral("offline") : QStringLiteral("books"));
   setStatus(QStringLiteral("Offline copy removed"));
   emit stateChanged();
 }
 
 void AppController::exit() {
+  clearReaderState();
   QCoreApplication::quit();
 }
 
@@ -1040,6 +1072,8 @@ void AppController::onPages(const QString &bookId, const QJsonArray &items, int 
   downloadBookId_ = bookId;
   downloadQueue_ = pagesFromArray(items);
   downloadQueueIndex_ = 0;
+  downloadTotal_ = downloadQueue_.size();
+  downloadedCount_ = store_->downloadedCount(bookId);
   startNextDownload();
   emit stateChanged();
 }
@@ -1055,12 +1089,12 @@ void AppController::onProgressUpdated(const QString &bookId, bool ok, int reques
   const int localPage = store_->localPage(bookId);
   if (!ok) {
     setStatus(QStringLiteral("Progress sync failed"));
-    if (localPage > action.page) {
-      scheduleProgressSync();
-    }
+    progressRetryCount_ = 0;
+    retryProgressSync();
     emit stateChanged();
     return;
   }
+  progressRetryCount_ = 0;
   if (localPage > action.page) {
     scheduleProgressSync();
     if (bookId == currentBookId_) {
@@ -1091,7 +1125,13 @@ void AppController::onCertificate(const QString &fingerprint, const QString &pem
     setStatus(QStringLiteral("Verify the server certificate fingerprint"));
   } else {
     showTrustPrompt_ = false;
-    setStatus(QStringLiteral("Certificate trusted"));
+    if (action.name == QStringLiteral("test")) {
+      setStatus(QStringLiteral("Certificate trusted · loading libraries"));
+      const int requestId = api_->fetchLibraries();
+      insertPending(requestId, QStringLiteral("libraries"));
+    } else {
+      setStatus(QStringLiteral("Certificate trusted"));
+    }
   }
   emit stateChanged();
 }
@@ -1130,8 +1170,8 @@ void AppController::onDownloadFinished(bool ok, const QString &message, int requ
   }
 
   ++downloadQueueIndex_;
+  ++downloadedCount_;
   if (view_ == QStringLiteral("reader") && currentBookId_ == downloadBookId_) {
-    ++downloadedCount_;
     updatePage(currentPage_);
   }
   bookModel_.markDownloaded(downloadBookId_, true);
@@ -1150,6 +1190,10 @@ void AppController::onRequestFailed(const QString &message, int requestId) {
   }
   if (!isCurrent(action)) {
     return;
+  }
+  if (action.name == QStringLiteral("syncCheck") || action.name == QStringLiteral("sync")) {
+    progressRetryCount_ = 0;
+    retryProgressSync();
   }
   if (action.name == QStringLiteral("download")) {
     clearDownloads();
@@ -1185,6 +1229,12 @@ void AppController::beginProgressSync(bool manual) {
     }
     return;
   }
+  if (offlineBook_) {
+    if (manual) {
+      setStatus(QStringLiteral("Offline books cannot sync progress"));
+    }
+    return;
+  }
   if (!settings_->configured() ||
       (settings_->serverUrl().startsWith(QStringLiteral("https"), Qt::CaseInsensitive) &&
        !settings_->trusted())) {
@@ -1195,6 +1245,9 @@ void AppController::beginProgressSync(bool manual) {
   }
   if ((syncCheckId_ > 0 && pending_.contains(syncCheckId_)) ||
       (syncWriteId_ > 0 && pending_.contains(syncWriteId_))) {
+    if (manual) {
+      setStatus(QStringLiteral("Sync already in progress"));
+    }
     return;
   }
 
@@ -1224,6 +1277,8 @@ void AppController::setStatus(const QString &status) {
 
 void AppController::resetForAccount(bool stayInSetup) {
   syncTimer_.stop();
+  filterTimer_.stop();
+  filterPrefix_ = false;
   clearDownloads();
   ++requestEpoch_;
   pending_.clear();
@@ -1255,6 +1310,7 @@ void AppController::resetForAccount(bool stayInSetup) {
   bookCompleted_ = false;
   syncCheckId_ = 0;
   syncWriteId_ = 0;
+  progressRetryCount_ = 0;
   currentPage_ = 1;
   pageCount_ = 0;
   downloadTotal_ = 0;
@@ -1613,6 +1669,7 @@ void AppController::updatePage(int page) {
   refreshNextBook();
   if (!pageSource_.isEmpty()) {
     store_->setProgress(currentBookId_, page, true);
+    progressRetryCount_ = 0;
     scheduleProgressSync();
   }
   emit stateChanged();
@@ -1620,13 +1677,33 @@ void AppController::updatePage(int page) {
 
 void AppController::scheduleProgressSync() {
   syncTimer_.stop();
-  syncTimer_.start(900);
+  syncTimer_.start(qMin(10000, 900 * (progressRetryCount_ + 1)));
+}
+
+void AppController::retryProgressSync() {
+  if (view_ != QStringLiteral("reader") || currentBookId_.isEmpty() || offlineBook_ ||
+      !store_->hasPendingProgress(currentBookId_)) {
+    return;
+  }
+  if (progressRetryCount_ >= 5) {
+    setStatus(QStringLiteral("Progress sync paused · retry when the page changes"));
+    emit stateChanged();
+    return;
+  }
+  ++progressRetryCount_;
+  scheduleProgressSync();
 }
 
 void AppController::startNextDownload() {
   if (downloadQueueIndex_ >= downloadQueue_.size()) {
     activeDownloadId_ = 0;
-    setStatus(QStringLiteral("Book downloaded · %1 pages").arg(downloadQueue_.size()));
+    const int requested = downloadQueue_.size();
+    const int stored = store_->downloadedCount(downloadBookId_);
+    setStatus(stored >= requested
+                  ? QStringLiteral("Book downloaded · %1 pages").arg(requested)
+                  : QStringLiteral("Book download incomplete · %1 of %2 pages stored")
+                        .arg(stored)
+                        .arg(requested));
     emit stateChanged();
     return;
   }

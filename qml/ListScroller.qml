@@ -13,7 +13,10 @@ Item {
         if (!view || view.count === 0) {
             return
         }
-        let index = view.indexAt(view.contentX, view.contentY + 1)
+        let index = -1
+        for (let offset = 1; offset <= 12 && index < 0; ++offset) {
+            index = view.indexAt(view.contentX, view.contentY + offset)
+        }
         if (index < 0) {
             index = view.indexAt(view.contentX, view.contentY + view.height / 2)
         }

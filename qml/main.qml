@@ -12,10 +12,14 @@ Window {
 
     property bool readerChrome: false
     property string lastView: controller.view
+    property string lastBookId: controller.currentBookId
+    property bool fallbackReaderChrome: controller.view === "reader" &&
+                                        (!nativeReader.active || root.readerChrome)
 
     function dismissKeyboard() {
         if (listFilter) listFilter.hideKeyboard()
-        else deviceInfo.hideKeyboard()
+        if (root.activeFocusItem) root.activeFocusItem.focus = false
+        deviceInfo.hideKeyboard()
     }
 
     property string headerTitle: {
@@ -37,7 +41,10 @@ Window {
                 root.lastView = controller.view
                 root.dismissKeyboard()
             }
-            if (controller.view !== "reader") root.readerChrome = false
+            if (controller.view !== "reader" || controller.currentBookId !== root.lastBookId) {
+                root.readerChrome = false
+                root.lastBookId = controller.currentBookId
+            }
         }
     }
 
@@ -68,7 +75,7 @@ Window {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        visible: controller.view !== "reader" || root.readerChrome
+        visible: controller.view !== "reader" || root.fallbackReaderChrome
         height: controller.view === "reader" ? 96 : 152
         color: "#f4f4f4"
         border.color: "#cccccc"
@@ -189,7 +196,7 @@ Window {
             }
 
             ActionButton {
-                width: 120
+                width: 160
                 height: 60
                 text: "Recently added"
                 onClicked: {
@@ -215,7 +222,7 @@ Window {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        visible: controller.view !== "reader" || root.readerChrome
+        visible: controller.view !== "reader" || root.fallbackReaderChrome
         height: 70
         color: "#eeeeee"
         border.color: "#cccccc"
@@ -258,8 +265,12 @@ Window {
             Connections {
                 target: appSettings
                 function onConfigurationChanged() {
-                    if (setupView.loadedAccountId !== appSettings.activeAccountId) {
+                    if (controller.view === "setup" &&
+                        !accountNameInput.activeFocus && !serverUrlInput.activeFocus &&
+                        !apiKeyInput.activeFocus) {
                         setupView.loadAccountFields()
+                    } else {
+                        setupView.loadedAccountId = appSettings.activeAccountId
                     }
                 }
             }
@@ -295,6 +306,7 @@ Window {
                     width: parent.width
                     label: "Account name"
                     placeholder: "Home Komga"
+                    readOnly: controller.busy
                 }
 
                 Row {
@@ -302,9 +314,11 @@ Window {
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
+                        width: 420
                         text: "Startup: " + appSettings.defaultAccountName
                         font.pixelSize: 22
                         color: "#444444"
+                        elide: Text.ElideRight
                     }
 
                     ActionButton {
@@ -323,6 +337,7 @@ Window {
                     width: parent.width
                     label: "Server URL"
                     placeholder: "https://komga.example.com"
+                    readOnly: controller.busy
                 }
 
                 InputField {
@@ -331,6 +346,7 @@ Window {
                     label: "API key"
                     placeholder: "Paste Komga API key"
                     password: true
+                    readOnly: controller.busy
                 }
 
                 Row {
@@ -339,6 +355,7 @@ Window {
                     ActionButton {
                         text: "Save"
                         width: 160
+                        active: !controller.busy
                         onClicked: controller.saveAccount(serverUrlInput.text, apiKeyInput.text, accountNameInput.text)
                     }
 
@@ -352,6 +369,7 @@ Window {
                     ActionButton {
                         text: "Clear"
                         width: 160
+                        active: !controller.busy
                         onClicked: {
                             appSettings.clearConnection()
                             accountNameInput.text = ""
@@ -380,6 +398,17 @@ Window {
             property string deleteAccountId: ""
             property string deleteAccountName: ""
 
+            Connections {
+                target: controller
+                function onStateChanged() {
+                    if (controller.view !== "accounts") {
+                        deleteAccountDialog.visible = false
+                        accountsView.deleteAccountId = ""
+                        accountsView.deleteAccountName = ""
+                    }
+                }
+            }
+
             Row {
                 id: accountActions
                 anchors.top: parent.top
@@ -397,9 +426,11 @@ Window {
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
+                    width: Math.max(100, parent.width - 260)
                     text: "Active: " + appSettings.activeAccountName + " · Startup: " + appSettings.defaultAccountName + " (Use = active · Startup = startup)"
                     font.pixelSize: 24
                     color: "#444444"
+                    elide: Text.ElideRight
                 }
             }
 
@@ -606,7 +637,7 @@ Window {
             visible: controller.view === "reader"
 
             function syncNativePage() {
-                if (controller.view !== "reader" || controller.pagePath === "" || !controller.colorPage) {
+                if (controller.view !== "reader" || controller.pageSource === "" || !controller.colorPage) {
                     nativeReader.close()
                 } else {
                     nativeReader.show(controller.pagePath, controller.currentPage,
@@ -629,6 +660,7 @@ Window {
                 function onExitRequested() { controller.exit() }
                 function onBackRequested() { controller.back() }
                 function onLoadFailed() { root.readerChrome = true }
+                function onClosed() { root.readerChrome = true }
             }
 
             Text {
@@ -649,7 +681,7 @@ Window {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.margins: 18
-                visible: controller.view === "reader" && root.readerChrome
+                visible: controller.view === "reader" && root.fallbackReaderChrome
                 spacing: 6
                 layoutDirection: Qt.LeftToRight
 
@@ -680,6 +712,7 @@ Window {
                     width: 84
                     height: 64
                     icon: "down"
+                    active: !controller.currentBookDownloaded || !controller.colorPage
                     onClicked: controller.downloadCurrentBook()
                 }
 
@@ -687,7 +720,9 @@ Window {
                     width: 90
                     height: 64
                     text: "Sync"
-                    active: controller.currentBookDownloaded && !controller.busy
+                    active: controller.currentBookDownloaded && !controller.busy &&
+                            appSettings.configured &&
+                            (!appSettings.serverUrl.startsWith("https://") || appSettings.trusted)
                     onClicked: controller.syncCurrentProgress()
                 }
 
@@ -716,8 +751,8 @@ Window {
             Rectangle {
                 id: completionBanner
                 anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: root.readerChrome ? readerControls.top : parent.bottom
-                anchors.bottomMargin: root.readerChrome ? 12 : 24
+                anchors.bottom: root.fallbackReaderChrome ? readerControls.top : parent.bottom
+                anchors.bottomMargin: root.fallbackReaderChrome ? 12 : 24
                 width: Math.min(parent.width - 48, 980)
                 height: 76
                 visible: controller.view === "reader" && controller.bookCompleted

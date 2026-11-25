@@ -14,7 +14,7 @@ New layout (per account):
 /mnt/ext1/.komga-reader/accounts/<account-id>/books/<hashed-book-id>/manifest.json
 ```
 
-On first launch the app tries to move the old `books/` folder into `accounts/default/books/`. If you created or switched to another account before that happened, your old downloads are still on disk but are not shown by the active account's **Offline** browser. The app only deletes cached books when you explicitly press **Delete**.
+On first launch the app moves the old `books/` folder into `accounts/default/books/` only when that target does not already exist. If migration was skipped, your old downloads are still on disk but are not shown by the active account's **Offline** browser. The app only deletes cached books when you explicitly press **Delete** or change/clear a configured server URL or API key. Caches written by interim builds under `accounts/<id>/books/books/<hashed-book-id>/` are still recognized.
 
 ## Find the files
 
@@ -38,7 +38,7 @@ To map an account name to its `<account-id>`, open:
 /mnt/ext1/.komga-reader/settings.ini
 ```
 
-Look for `[accounts]` groups. Each group name is the account ID and contains `name=...`, `url=...`, and the TLS pin. `[general] startupAccount=...` is the account opened at launch, and `[general] activeAccount=...` tells you which account is currently selected.
+Qt writes account sections as `[accounts/<account-id>]`. Each section contains `name=...`, `url=...`, `apiKey=...`, `fingerprint=...` (the TLS pin), and `pem=...`. General values are written under `[%General]`: `startupAccount=...` is the account opened at launch, and `activeAccount=...` is the currently selected account.
 
 ## Recover manually
 
@@ -74,4 +74,4 @@ You can also delete it from a PC file manager. Do not delete `/mnt/ext1/.komga-r
 
 ## Note about progress
 
-The copied `manifest.json` files contain local page progress and any pending sync flag. If a manifest says `pending: true`, the next automatic or manual sync will push that page to Komga, with the existing server-ahead protection still applied.
+The copied `manifest.json` files contain local page progress and any pending sync flag. If a manifest says `pending: true`, opening that book online starts a sync; leaving the reader starts an immediate sync for pending progress, and failed writes retry with bounded backoff while the reader remains open. There is no startup-wide pending-progress scan, offline books are skipped, and the existing server-ahead protection still applies.

@@ -51,6 +51,8 @@ QNetworkRequest KomgaApi::makeRequest(const QString &path, bool json,
     request.setRawHeader("X-API-Key", settings_->apiKey().toUtf8());
   }
   request.setRawHeader("Accept", "application/json");
+  request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                       QNetworkRequest::SameOriginRedirectPolicy);
   if (json) {
     request.setRawHeader("Content-Type", "application/json");
   }
@@ -342,17 +344,28 @@ void KomgaApi::onFinished() {
     cleanup(reply);
   };
 
+  if (reply->error() != QNetworkReply::NoError) {
+    fail(reply->errorString());
+    return;
+  }
+
+  const QUrl configured(settings_->serverUrl(), QUrl::TolerantMode);
+  if (reply->url().scheme() != configured.scheme() ||
+      reply->url().host().compare(configured.host(), Qt::CaseInsensitive) != 0 ||
+      reply->url().port() != configured.port()) {
+    fail(QStringLiteral("Server redirected to a different host"));
+    return;
+  }
+
   const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
   const QByteArray body = reply->readAll();
 
   if (reply->url().scheme() == QStringLiteral("https")) {
-    QString fingerprint = pending.observedFingerprint;
-    QString pem = pending.observedPem;
     const QSslCertificate certificate = reply->sslConfiguration().peerCertificate();
-    if (fingerprint.isEmpty() && !certificate.isNull()) {
-      fingerprint = certificateFingerprint(certificate);
-      pem = QString::fromLatin1(certificate.toPem());
-    }
+    QString fingerprint = certificate.isNull() ? pending.observedFingerprint
+                                               : certificateFingerprint(certificate);
+    QString pem = certificate.isNull() ? pending.observedPem
+                                       : QString::fromLatin1(certificate.toPem());
     if (fingerprint.isEmpty()) {
       fail(QStringLiteral("Server TLS certificate is unavailable"));
       return;
@@ -368,10 +381,6 @@ void KomgaApi::onFinished() {
     }
   }
 
-  if (reply->error() != QNetworkReply::NoError) {
-    fail(reply->errorString());
-    return;
-  }
   if (status < 200 || status >= 300) {
     fail(replyMessage(reply, body));
     return;

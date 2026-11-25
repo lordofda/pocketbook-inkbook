@@ -7,6 +7,7 @@ Rectangle {
     property alias text: input.text
     property string placeholder: ""
     property bool password: false
+    property bool readOnly: false
 
     width: 100
     height: 116
@@ -38,6 +39,7 @@ Rectangle {
             font.pixelSize: 27
             color: "#111111"
             echoMode: field.password ? TextInput.Password : TextInput.Normal
+            readOnly: field.readOnly
             selectByMouse: true
 
             Keys.onReturnPressed: function (event) {

@@ -124,7 +124,7 @@ Item {
                     anchors.fill: parent
                     onClicked: {
                         input.text = modelData === "All" ? "" : modelData
-                        controller.setFilterText(input.text)
+                        controller.setFilterPrefix(input.text)
                         bar.hideKeyboard()
                     }
                 }

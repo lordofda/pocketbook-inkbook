@@ -51,9 +51,10 @@ class BookStore : public QObject {
  signals:
   void storeChanged();
 
- private:
-  QString manifestPath(const QString &bookId) const;
-  QString extensionFor(const QString &mediaType) const;
+  private:
+   QStringList cacheRoots() const;
+   QString manifestPath(const QString &bookId) const;
+   QString extensionFor(const QString &mediaType) const;
 
   Settings *settings_;
 };

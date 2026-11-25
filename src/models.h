@@ -52,8 +52,9 @@ class ListModel : public QAbstractListModel {
   void markDownloaded(const QString &id, bool downloaded);
   void clear();
   QString filter() const;
-  void setFilter(const QString &filter);
-  ListItem itemAt(int row) const;
+   void setFilter(const QString &filter);
+   void setFilter(const QString &filter, bool prefix);
+   ListItem itemAt(int row) const;
   int indexOfId(const QString &id) const;
 
  signals:
@@ -64,6 +65,7 @@ class ListModel : public QAbstractListModel {
   void rebuildVisible();
 
   QVector<ListItem> items_;
-  QVector<int> visible_;
-  QString filter_;
+   QVector<int> visible_;
+   QString filter_;
+   bool prefixFilter_ = false;
 };

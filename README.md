@@ -26,16 +26,16 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
   - When opening a book, the app checks Komga's stored progress. If the server is further ahead, the local position moves to the server page; otherwise the local page is pushed.
 - Native InkView reader: left/right thirds turn pages; a center tap toggles native bars with left/right arrows, a bold down-arrow download action, Sync, Exit, and Back.
 - Top bar keeps Home, Back, Refresh, Accounts, Bar, and Exit as text; In progress, Offline, Recently added, and On deck appear in a second row on non-reader screens.
-- `Bar:off` / `Bar:on` is available only in the QML/library top bar; reader chrome is toggled by tapping the center third. Default status bar state is hidden.
+- `Bar:off` / `Bar:on` in the library top bar toggles the system status bar. The QML fallback reader's `Bar` button toggles reader chrome; the native InkView reader toggles chrome with a center tap, top-bar tap, or OK/Menu key and has no status-bar button. Default status bar state is hidden.
 
 ## Install
 
-1. Download `komga-reader.app` from the GitHub Releases page.
+1. Download and unzip `komga-reader-vX.Y.Z.zip` from the GitHub Releases page.
 2. Copy it to `/mnt/ext1/applications/` on the PocketBook.
 3. Disconnect/Eject the device and launch **Komga Reader** from Applications.
 4. Enter the Komga HTTPS URL and API key, then verify and trust the displayed SHA-256 certificate fingerprint.
 
-The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; the startup account is stored separately from the active account, and book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/`. Existing single-account installs are migrated to a `default` account on first launch.
+The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; the startup account is stored separately from the active account, and book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/<hashed-book-id>/`. The older temporary `books/books/<hashed-book-id>/` layout is still recognized. Changing or clearing a configured server URL/API key clears that account's cache. Existing single-account installs are migrated to a `default` account on first launch.
 If cached books do not appear after upgrading, see [CACHE_RECOVERY.md](CACHE_RECOVERY.md). Books cached by older grayscale builds must be downloaded again for vivid color.
 
 ## Security notes
@@ -54,7 +54,7 @@ The target binary was cross-built for ARM softfp with Qt 6.8.2 using the `ghcr.i
 sha256sum dist/komga-reader.app
 ```
 
-The script configures CMake with `cmake/pocketbook.toolchain.cmake` and copies the linked binary to `dist/komga-reader.app`.
+The script configures CMake with `$POCKETBOOK_SDK_CMAKE` if set, otherwise `$SDK/cmake/pocketbook.toolchain.cmake` (default SDK: `/opt/pocketbook-build/pocketbook-sdk-qt6`), then copies the linked binary to `dist/komga-reader.app`.
 
 Verified on device with:
 
@@ -66,8 +66,8 @@ QML validation:
 
 ```bash
 /usr/lib/qt6/bin/qmllint --unqualified disable -W 0 \
-  qml/main.qml qml/ActionButton.qml qml/ListRow.qml qml/InputField.qml \
-  qml/AccountRow.qml qml/FilterBar.qml qml/ListScroller.qml
+  qml/main.qml qml/ActionButton.qml qml/IconButton.qml qml/ListRow.qml \
+  qml/InputField.qml qml/AccountRow.qml qml/FilterBar.qml qml/ListScroller.qml
 ```
 
 ## Project layout

@@ -6,7 +6,7 @@ This document records the design decisions, architecture, UI behavior, and bug f
 
 The app is an experimental, AI-authored Qt Quick / C++ client. It is sideloaded as `komga-reader.app`, connects to a user-supplied Komga server, downloads whole books for offline reading, renders color pages through InkView, and syncs reading progress back to Komga.
 
-The released line is `v1.2.4` on `main`. The `cleanup/code-review` branch applies the review fixes described below and adds the default-on InkView color renderer.
+The latest published page is the `v1.2.4` pre-release at `ee95897`. Local `main` has post-release commits through `3e4ff53`, and `review/codebase-hardening` carries the unreleased review fixes described below.
 
 ## 2. Product goals
 
@@ -121,19 +121,19 @@ Typical browsing flow:
           page files
 ```
 
-Settings keys include:
+Qt writes general keys under `[%General]` and account keys under `[accounts/<id>]`; logical keys are:
 
-- `[general] activeAccount`
-- `[general] startupAccount`
-- `[general] defaultAccount` (legacy compatibility)
-- `[accounts/<id>] name`
-- `[accounts/<id>] url`
-- `[accounts/<id>] apiKey`
-- `[accounts/<id>] fingerprint`
-- `[accounts/<id>] pem`
-- `[reader] hideStatusBar`
+- `general/activeAccount`
+- `general/startupAccount`
+- `general/defaultAccount` (legacy compatibility)
+- `accounts/<id>/name`
+- `accounts/<id>/url`
+- `accounts/<id>/apiKey`
+- `accounts/<id>/fingerprint`
+- `accounts/<id>/pem`
+- `reader/hideStatusBar`
 
-Legacy single-account installs are migrated to an account with id `default`, and the old `books/` cache is moved to `accounts/default/books/`.
+Legacy single-account installs are migrated to an account with id `default`, and the old `books/` cache is moved to `accounts/default/books/`. Caches written by interim builds under `accounts/<id>/books/books/<hashed-book-id>/` remain readable, but new downloads use the single-`books` layout shown above.
 
 ### 5.2 Active vs startup account
 
@@ -259,8 +259,8 @@ Used Komga endpoints include:
 - `/api/v1/books/list?unpaged=true&sort=metadata.numberSort%2Casc`
 - `/api/v1/books/{id}`
 - `/api/v1/books/{id}/pages`
-- `/api/v1/books/{id}/progress`
-- `/api/v1/books/{id}/pages/{page}/raw`
+- `PATCH /api/v1/books/{id}/read-progress`
+- `/api/v1/books/{id}/pages/{page}`
 
 Authenticated requests use `X-API-Key` over HTTPS or loopback HTTP only.
 
@@ -280,7 +280,7 @@ Before pushing local progress, the app fetches the book from Komga and re-reads 
 - If the server page is ahead, local state jumps to the server page.
 - Otherwise local progress is pushed.
 - Completion pushes `completed:true`.
-- Sync runs only from the reader for online books, and overlapping sync checks are ignored.
+- Sync runs only for online books from the reader; leaving the reader starts an immediate sync for pending progress, failed writes retry with bounded backoff while the reader remains open, and overlapping sync checks are ignored.
 
 Progress writes are local, then debounced to the server. This protects against overwriting newer server progress after offline reading.
 
@@ -355,7 +355,7 @@ Validation:
 
 ```bash
 /usr/lib/qt6/bin/qmllint --unqualified disable -W 0 \
-  qml/main.qml qml/ActionButton.qml qml/ListRow.qml \
+  qml/main.qml qml/ActionButton.qml qml/IconButton.qml qml/ListRow.qml \
   qml/AccountRow.qml qml/InputField.qml qml/FilterBar.qml \
   qml/ListScroller.qml
 ```
@@ -364,7 +364,7 @@ Releases:
 
 - GitHub rejects raw `.app` assets, so release assets are zipped as `komga-reader-vX.Y.Z.zip`.
 - Install instructions tell the user to unzip and copy `komga-reader.app` to `/mnt/ext1/applications/`.
-- Tags are annotated and pushed separately.
+- New tags should be annotated and pushed separately; `v1.2.3` is an existing lightweight-tag exception.
 - The PAT is used transiently for pushes and API calls; it is never written into git config or source.
 
 ### 11.1 Release history
@@ -377,14 +377,16 @@ Releases:
 | `v1.2.1` | `85c8542` | Edit Account opens setup form for configured accounts. |
 | `v1.2.2` | `d3099b8` | Scroller buttons and download scroll-position fixes. |
 | `v1.2.3` | `20b6db2` | Color preprocessing, HQ refresh, account/default fixes, progress-push fix. |
+| `v1.2.4` | `ee95897` | Native InkView color rendering; published as a pre-release. |
 
-`v1.2.0` has a tag but no public GitHub release page. `v1.2.1`, `v1.2.2`, and `v1.2.3` have release pages with zipped binaries.
+`v1.2.0` has a tag but no public GitHub release page. `v1.2.1`, `v1.2.2`, and `v1.2.3` have release pages with zipped binaries. `v1.2.4` has a pre-release page, so GitHub still reports `v1.2.3` as the latest stable release.
 
 ## 12. Branching state at time of writing
 
-- `main`: released line at `20b6db2` / `v1.2.3`.
-- `test/inkview-reader`: local prototype branch with an experimental native InkView page renderer. Not released.
-- `cleanup/code-review`: unreleased rollback and professional-review cleanup branch.
+- `main`: local line at `3e4ff53`, four commits past the `v1.2.4` pre-release. Not pushed or tagged after `v1.2.4`.
+- `test/inkview-reader`: local prototype branch with an experimental native InkView page renderer. Superseded by `v1.2.4`.
+- `cleanup/code-review`: same commit as `v1.2.4`; no longer the active cleanup branch.
+- `review/codebase-hardening`: unreleased branch for the whole-codebase review fixes.
 
 ## 13. Known limitations
 

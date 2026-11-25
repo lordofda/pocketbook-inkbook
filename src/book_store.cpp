@@ -8,6 +8,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QRegularExpression>
 #include <QSaveFile>
 #include <QSet>
 #include <QUrl>
@@ -16,6 +17,17 @@ namespace {
 
 QString pageKey(int page) {
   return QString::number(page);
+}
+
+QString directoryKey(const QString &bookId) {
+  return QString::fromLatin1(
+      QCryptographicHash::hash(bookId.toUtf8(), QCryptographicHash::Sha256).toHex().left(32));
+}
+
+bool validPageFileName(const QString &name) {
+  static const QRegularExpression pattern(QStringLiteral("^[0-9]{4,}\\.(jpg|jpeg|png|webp|gif)$"),
+                                          QRegularExpression::CaseInsensitiveOption);
+  return pattern.match(name).hasMatch();
 }
 
 }
@@ -27,9 +39,16 @@ QString BookStore::bookDirectory(const QString &bookId) const {
   if (bookId.isEmpty()) {
     return QString();
   }
-  const QString key = QString::fromLatin1(
-      QCryptographicHash::hash(bookId.toUtf8(), QCryptographicHash::Sha256).toHex().left(32));
-  return QDir(settings_->bookCacheRoot()).filePath(QStringLiteral("books/%1").arg(key));
+  const QString root = settings_->bookCacheRoot();
+  const QString canonical = QDir(root).filePath(directoryKey(bookId));
+  if (QFileInfo::exists(canonical)) {
+    return canonical;
+  }
+  const QString legacy = QDir(root).filePath(QStringLiteral("books/%1").arg(directoryKey(bookId)));
+  if (QFileInfo::exists(legacy)) {
+    return legacy;
+  }
+  return canonical;
 }
 
 QString BookStore::manifestPath(const QString &bookId) const {
@@ -62,7 +81,11 @@ bool BookStore::loadManifest(const QString &bookId, BookManifest *manifest) cons
     return false;
   }
   const QJsonObject object = document.object();
-  manifest->id = object.value(QStringLiteral("id")).toString(bookId);
+  const QString storedId = object.value(QStringLiteral("id")).toString();
+  if (!storedId.isEmpty() && storedId != bookId) {
+    return false;
+  }
+  manifest->id = bookId;
   manifest->title = object.value(QStringLiteral("title")).toString();
   manifest->pageCount = object.value(QStringLiteral("pageCount")).toInt();
   manifest->lastPage = object.value(QStringLiteral("lastPage")).toInt();
@@ -75,7 +98,11 @@ bool BookStore::loadManifest(const QString &bookId, BookManifest *manifest) cons
   for (auto it = files.constBegin(); it != files.constEnd(); ++it) {
     const QJsonObject page = it.value().toObject();
     const int number = it.key().toInt();
-    manifest->fileNames.insert(number, page.value(QStringLiteral("file")).toString());
+    const QString fileName = page.value(QStringLiteral("file")).toString();
+    if (number < 1 || !validPageFileName(fileName)) {
+      continue;
+    }
+    manifest->fileNames.insert(number, fileName);
     manifest->mediaTypes.insert(number, page.value(QStringLiteral("mediaType")).toString());
   }
   return true;
@@ -104,7 +131,9 @@ bool BookStore::saveManifest(const BookManifest &manifest) {
   object.insert(QStringLiteral("pending"), manifest.pending);
   object.insert(QStringLiteral("color"), manifest.color);
   object.insert(QStringLiteral("updatedAt"),
-                QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
+                (manifest.updatedAt.isValid() ? manifest.updatedAt
+                                              : QDateTime::currentDateTimeUtc())
+                    .toString(Qt::ISODate));
   object.insert(QStringLiteral("files"), files);
 
   QSaveFile file(manifestPath(manifest.id));
@@ -176,7 +205,8 @@ bool BookStore::storePage(const QString &bookId, int page, const QString &mediaT
   }
 
   BookManifest manifest;
-  if (!loadManifest(bookId, &manifest)) {
+  if (!loadManifest(bookId, &manifest) || manifest.id != bookId) {
+    manifest = BookManifest();
     manifest.id = bookId;
     manifest.pageCount = page;
   }
@@ -247,17 +277,26 @@ bool BookStore::removeBook(const QString &bookId) {
   return removed;
 }
 
+QStringList BookStore::cacheRoots() const {
+  const QString root = settings_->bookCacheRoot();
+  const QString legacy = QDir(root).filePath(QStringLiteral("books"));
+  return QFileInfo::exists(legacy) ? QStringList{legacy, root} : QStringList{root};
+}
+
 QStringList BookStore::downloadedBookIds() const {
   QStringList result;
-  const QString root = QDir(settings_->bookCacheRoot()).filePath(QStringLiteral("books"));
-  QDirIterator directories(root, QDir::Dirs | QDir::NoDotAndDotDot);
-  while (directories.hasNext()) {
-    const QString directory = directories.next();
-    QFile file(QDir(directory).filePath(QStringLiteral("manifest.json")));
-    if (file.open(QIODevice::ReadOnly)) {
+  for (const QString &root : cacheRoots()) {
+    QDirIterator directories(root, QDir::Dirs | QDir::NoDotAndDotDot);
+    while (directories.hasNext()) {
+      const QString directory = directories.next();
+      QFile file(QDir(directory).filePath(QStringLiteral("manifest.json")));
+      if (!file.open(QIODevice::ReadOnly)) {
+        continue;
+      }
       const QJsonObject object = QJsonDocument::fromJson(file.readAll()).object();
       const QString id = object.value(QStringLiteral("id")).toString();
-      if (!id.isEmpty()) {
+      if (!id.isEmpty() && directoryKey(id) == QFileInfo(directory).fileName() &&
+          !result.contains(id)) {
         result.append(id);
       }
     }
@@ -268,10 +307,11 @@ QStringList BookStore::downloadedBookIds() const {
 QVariantMap BookStore::cacheStats() const {
   qint64 bytes = 0;
   int books = 0;
-  const QString root = QDir(settings_->bookCacheRoot()).filePath(QStringLiteral("books"));
-  QDirIterator files(root, QDir::Files, QDirIterator::Subdirectories);
-  while (files.hasNext()) {
-    bytes += QFileInfo(files.next()).size();
+  for (const QString &root : cacheRoots()) {
+    QDirIterator files(root, QDir::Files, QDirIterator::Subdirectories);
+    while (files.hasNext()) {
+      bytes += QFileInfo(files.next()).size();
+    }
   }
   for (const QString &id : downloadedBookIds()) {
     if (isDownloaded(id)) {

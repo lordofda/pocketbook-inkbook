@@ -91,12 +91,17 @@ QString ListModel::filter() const {
 }
 
 void ListModel::setFilter(const QString &filter) {
+  setFilter(filter, false);
+}
+
+void ListModel::setFilter(const QString &filter, bool prefix) {
   const QString normalized = filter.trimmed();
-  if (filter_ == normalized) {
+  if (filter_ == normalized && prefixFilter_ == prefix) {
     return;
   }
   beginResetModel();
   filter_ = normalized;
+  prefixFilter_ = prefix;
   rebuildVisible();
   endResetModel();
   emit filterChanged();
@@ -108,9 +113,13 @@ void ListModel::rebuildVisible() {
   visible_.reserve(items_.size());
   const QString needle = filter_.toCaseFolded();
   for (int i = 0; i < items_.size(); ++i) {
-    if (needle.isEmpty() || items_.at(i).title.toCaseFolded().contains(needle) ||
-        items_.at(i).subtitle.toCaseFolded().contains(needle) ||
-        items_.at(i).meta.toCaseFolded().contains(needle)) {
+    const ListItem &item = items_.at(i);
+    const bool matches = needle.isEmpty() ||
+                         (prefixFilter_ ? item.title.toCaseFolded().startsWith(needle)
+                                        : item.title.toCaseFolded().contains(needle) ||
+                                              item.subtitle.toCaseFolded().contains(needle) ||
+                                              item.meta.toCaseFolded().contains(needle));
+    if (matches) {
       visible_.append(i);
     }
   }

@@ -66,6 +66,7 @@ class AppController : public QObject {
   ListModel *onDeckModel();
   QString filterText() const;
   Q_INVOKABLE void setFilterText(const QString &text);
+  Q_INVOKABLE void setFilterPrefix(const QString &text);
   QString view() const;
   QString status() const;
   bool busy() const;
@@ -150,6 +151,7 @@ class AppController : public QObject {
  private:
   void setView(const QString &view);
   void setStatus(const QString &status);
+  void applyFilter();
   void insertPending(int requestId, const QString &name, const QString &id = QString(),
                      int page = 0, bool manual = false, const QString &title = QString());
   bool isCurrent(const PendingAction &action) const;
@@ -171,6 +173,7 @@ class AppController : public QObject {
   void beginProgressSync(bool manual);
   void updatePage(int page);
   void scheduleProgressSync();
+  void retryProgressSync();
   void startNextDownload();
   void clearDownloads();
   QVector<int> pagesFromArray(const QJsonArray &items) const;
@@ -193,6 +196,8 @@ class AppController : public QObject {
   QJsonArray lastSeries_;
   QJsonArray lastBooks_;
   QTimer syncTimer_;
+  QTimer filterTimer_;
+  bool filterPrefix_ = false;
   QString view_;
   QString status_;
   QString filterText_;
@@ -215,6 +220,7 @@ class AppController : public QObject {
   int activeDownloadId_;
   int syncCheckId_;
   int syncWriteId_;
+  int progressRetryCount_;
   int requestEpoch_;
   int currentPage_;
   int pageCount_;

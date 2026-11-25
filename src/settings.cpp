@@ -40,6 +40,11 @@ Settings::Settings(QObject *parent)
       settings_(defaultCacheRoot() + QStringLiteral("/settings.ini"), QSettings::IniFormat),
       cacheRoot_(defaultCacheRoot()) {
   QDir().mkpath(cacheRoot_);
+  QFile settingsFile(settings_.fileName());
+  if (!settingsFile.exists() && settingsFile.open(QIODevice::WriteOnly)) {
+    settingsFile.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    settingsFile.close();
+  }
   ensureAccounts();
   QFile file(settings_.fileName());
   if (file.exists()) {
@@ -67,13 +72,15 @@ void Settings::setAccountValue(const QString &key, const QString &value,
 
 void Settings::ensureAccounts() {
   migrateLegacySettings();
+  migrateLegacyCache();
   QStringList ids = accountIds();
   if (ids.isEmpty()) {
     const QString id = QStringLiteral("default");
     settings_.setValue(accountKey(QStringLiteral("name"), id), QStringLiteral("Default"));
     ids.append(id);
   }
-  const QString active = settings_.value(QString::fromLatin1(kActiveAccountKey)).toString();
+  const QString storedActive = settings_.value(QString::fromLatin1(kActiveAccountKey)).toString();
+  QString active = ids.contains(storedActive) ? storedActive : QString();
   QString startup = settings_.value(QString::fromLatin1(kStartupAccountKey)).toString();
   if (startup.isEmpty()) {
     startup = settings_.value(QString::fromLatin1(kDefaultAccountKey)).toString();
@@ -88,9 +95,12 @@ void Settings::ensureAccounts() {
       startup = ids.first();
     }
   }
+  if (active.isEmpty()) {
+    active = startup;
+  }
   settings_.setValue(QString::fromLatin1(kStartupAccountKey), startup);
   settings_.setValue(QString::fromLatin1(kDefaultAccountKey), startup);
-  settings_.setValue(QString::fromLatin1(kActiveAccountKey), startup);
+  settings_.setValue(QString::fromLatin1(kActiveAccountKey), active);
   persist();
 }
 
@@ -125,7 +135,6 @@ void Settings::migrateLegacySettings() {
   settings_.remove(QString::fromLatin1(kApiKeyKey));
   settings_.remove(QString::fromLatin1(kFingerprintKey));
   settings_.remove(QString::fromLatin1(kPemKey));
-  migrateLegacyCache();
 }
 
 void Settings::migrateLegacyCache() {
@@ -304,7 +313,13 @@ QString Settings::normalizeUrl(const QString &value) const {
   if (!url.isValid() || url.host().isEmpty()) {
     return QString();
   }
-  if (url.scheme() != QStringLiteral("https") && url.scheme() != QStringLiteral("http")) {
+  if (url.scheme() == QStringLiteral("http")) {
+    const QString host = url.host().toLower();
+    if (host != QStringLiteral("localhost") && host != QStringLiteral("127.0.0.1") &&
+        host != QStringLiteral("::1")) {
+      return QString();
+    }
+  } else if (url.scheme() != QStringLiteral("https")) {
     return QString();
   }
   url.setQuery(QString());
@@ -351,6 +366,9 @@ bool Settings::saveConnection(const QString &url, const QString &key, const QStr
   if (normalized != previousUrl || trimmedKey != previousKey.trimmed()) {
     settings_.remove(accountKey(QStringLiteral("fingerprint")));
     settings_.remove(accountKey(QStringLiteral("pem")));
+    if (!previousUrl.isEmpty() && !previousKey.isEmpty()) {
+      QDir(bookCacheRoot()).removeRecursively();
+    }
   }
   persist();
   emit configurationChanged();
@@ -375,6 +393,7 @@ void Settings::clearConnection() {
   settings_.remove(accountKey(QStringLiteral("apiKey")));
   settings_.remove(accountKey(QStringLiteral("fingerprint")));
   settings_.remove(accountKey(QStringLiteral("pem")));
+  QDir(bookCacheRoot()).removeRecursively();
   persist();
   emit configurationChanged();
 }
