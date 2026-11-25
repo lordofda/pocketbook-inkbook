@@ -11,72 +11,13 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QSaveFile>
+#include <QSet>
 #include <QUrl>
-#include <QVector>
 
 namespace {
 
-constexpr int kColorStep = 17;
-
 QString pageKey(int page) {
   return QString::number(page);
-}
-
-int boostChannel(int value, int luminance) {
-  const int contrasted = qBound(0, qRound((value - 128) * 1.12 + 128), 255);
-  return qBound(0, qRound(luminance + (contrasted - luminance) * 1.28), 255);
-}
-
-void applyColorBoost(QImage &image) {
-  for (int y = 0; y < image.height(); ++y) {
-    QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
-    for (int x = 0; x < image.width(); ++x) {
-      const QRgb pixel = line[x];
-      const int red = qRed(pixel);
-      const int green = qGreen(pixel);
-      const int blue = qBlue(pixel);
-      const int luminance = (77 * red + 150 * green + 29 * blue) / 256;
-      line[x] = qRgba(boostChannel(red, luminance), boostChannel(green, luminance),
-                      boostChannel(blue, luminance), qAlpha(pixel));
-    }
-  }
-}
-
-void applyColorDither(QImage &image) {
-  const int width = image.width();
-  const int height = image.height();
-  QVector<double> current(width * 3, 0.0);
-  QVector<double> next(width * 3, 0.0);
-  for (int y = 0; y < height; ++y) {
-    next.fill(0.0);
-    QRgb *line = reinterpret_cast<QRgb *>(image.scanLine(y));
-    for (int x = 0; x < width; ++x) {
-      const QRgb pixel = line[x];
-      const int values[3] = {qRed(pixel), qGreen(pixel), qBlue(pixel)};
-      int outputs[3] = {0, 0, 0};
-      for (int channel = 0; channel < 3; ++channel) {
-        const int index = x * 3 + channel;
-        const int value = qBound(0, qRound(values[channel] + current[index]), 255);
-        outputs[channel] =
-            qBound(0, qRound(static_cast<double>(value) / kColorStep) * kColorStep, 255);
-        const double error = value - outputs[channel];
-        if (x + 1 < width) {
-          current[index + 3] += error * 7.0 / 16.0;
-        }
-        if (y + 1 < height) {
-          next[index] += error * 5.0 / 16.0;
-          if (x > 0) {
-            next[index - 3] += error * 3.0 / 16.0;
-          }
-          if (x + 1 < width) {
-            next[index + 3] += error / 16.0;
-          }
-        }
-      }
-      line[x] = qRgba(outputs[0], outputs[1], outputs[2], qAlpha(pixel));
-    }
-    current.swap(next);
-  }
 }
 
 }
@@ -184,12 +125,17 @@ bool BookStore::createManifest(const QString &bookId, const QString &title,
   loadManifest(bookId, &manifest);
   manifest.id = bookId;
   manifest.title = title;
-  manifest.pageCount = pages.size();
+  manifest.pageCount = 0;
   manifest.updatedAt = QDateTime::currentDateTimeUtc();
 
+  QSet<int> currentPages;
   for (int i = 0; i < pages.size(); ++i) {
     const QJsonObject page = pages.at(i).toObject();
     const int number = page.value(QStringLiteral("number")).toInt(i + 1);
+    if (number < 1) {
+      continue;
+    }
+    currentPages.insert(number);
     manifest.mediaTypes.insert(number,
                                page.value(QStringLiteral("mediaType")).toString(QStringLiteral("image/jpeg")));
     if (!manifest.fileNames.contains(number)) {
@@ -198,6 +144,13 @@ bool BookStore::createManifest(const QString &bookId, const QString &title,
                                 QStringLiteral("%1.%2").arg(number, 4, 10, QLatin1Char('0')).arg(extension));
     }
   }
+  for (int page : manifest.fileNames.keys()) {
+    if (!currentPages.contains(page)) {
+      manifest.fileNames.remove(page);
+      manifest.mediaTypes.remove(page);
+    }
+  }
+  manifest.pageCount = currentPages.size();
   return saveManifest(manifest);
 }
 
@@ -210,11 +163,8 @@ bool BookStore::storePage(const QString &bookId, int page, const QString &mediaT
 
   const QByteArray output = convertImage(data, mediaType);
   QString extension = extensionFor(mediaType);
-  if (output != data && settings_->grayscale() && extension != QStringLiteral("png")) {
+  if (settings_->grayscale() && output != data && extension != QStringLiteral("png")) {
     extension = QStringLiteral("jpg");
-  }
-  if (output != data && !settings_->grayscale()) {
-    extension = QStringLiteral("png");
   }
   const QString fileName =
       QStringLiteral("%1.%2").arg(page, 4, 10, QLatin1Char('0')).arg(extension);
@@ -362,28 +312,19 @@ QString BookStore::extensionFor(const QString &mediaType) const {
 }
 
 QByteArray BookStore::convertImage(const QByteArray &data, const QString &mediaType) const {
-  if (!settings_->grayscale() && !settings_->colorBoost()) {
+  if (!settings_->grayscale()) {
     return data;
   }
   QImage image = QImage::fromData(data);
   if (image.isNull()) {
     return data;
   }
+  image = image.convertToFormat(QImage::Format_Grayscale8);
+  const char *format = mediaType.toLower().contains(QStringLiteral("png")) ? "PNG" : "JPEG";
   QBuffer buffer;
   buffer.open(QIODevice::WriteOnly);
-  if (settings_->grayscale()) {
-    image = image.convertToFormat(QImage::Format_Grayscale8);
-    const char *format = mediaType.toLower().contains(QStringLiteral("png")) ? "PNG" : "JPEG";
-    if (!image.save(&buffer, format, 88)) {
-      return data;
-    }
-  } else {
-    image = image.convertToFormat(QImage::Format_ARGB32);
-    applyColorBoost(image);
-    applyColorDither(image);
-    if (!image.save(&buffer, "PNG")) {
-      return data;
-    }
+  if (!image.save(&buffer, format, 88)) {
+    return data;
   }
   return buffer.data();
 }

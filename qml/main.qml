@@ -44,8 +44,15 @@ Window {
     Keys.onPressed: function (event) {
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
             root.dismissKeyboard()
-            if (controller.view === "setup") controller.openAccounts()
-            else controller.back()
+            if (deleteAccountDialog.visible) {
+                deleteAccountDialog.visible = false
+            } else if (controller.showTrustPrompt) {
+                controller.cancelTrust()
+            } else if (controller.view === "setup") {
+                controller.openAccounts()
+            } else {
+                controller.back()
+            }
             event.accepted = true
         } else if (controller.view === "reader" && event.key === Qt.Key_Left) {
             controller.previousPage()
@@ -182,8 +189,28 @@ Window {
         anchors.right: parent.right
 
         Item {
+            id: setupView
             anchors.fill: parent
             visible: controller.view === "setup"
+            property string loadedAccountId: ""
+
+            function loadAccountFields() {
+                accountNameInput.text = appSettings.activeAccountName
+                serverUrlInput.text = appSettings.serverUrl
+                apiKeyInput.text = appSettings.apiKey
+                loadedAccountId = appSettings.activeAccountId
+            }
+
+            Component.onCompleted: setupView.loadAccountFields()
+
+            Connections {
+                target: appSettings
+                function onConfigurationChanged() {
+                    if (setupView.loadedAccountId !== appSettings.activeAccountId) {
+                        setupView.loadAccountFields()
+                    }
+                }
+            }
 
             Column {
                 anchors.top: parent.top
@@ -216,7 +243,6 @@ Window {
                     width: parent.width
                     label: "Account name"
                     placeholder: "Home Komga"
-                    text: appSettings.activeAccountName
                 }
 
                 Row {
@@ -245,7 +271,6 @@ Window {
                     width: parent.width
                     label: "Server URL"
                     placeholder: "https://komga.example.com"
-                    text: appSettings.serverUrl
                 }
 
                 InputField {
@@ -254,7 +279,6 @@ Window {
                     label: "API key"
                     placeholder: "Paste Komga API key"
                     password: true
-                    text: appSettings.apiKey
                 }
 
                 Row {
@@ -278,6 +302,9 @@ Window {
                         width: 160
                         onClicked: {
                             appSettings.clearConnection()
+                            accountNameInput.text = ""
+                            serverUrlInput.text = ""
+                            apiKeyInput.text = ""
                             controller.refresh()
                         }
                     }
@@ -521,7 +548,6 @@ Window {
                     onClicked: {
                         const id = model.itemId
                         root.dismissKeyboard()
-                        controller.noteRowTap(id, index)
                         if (controller.view === "libraries") {
                             if (id !== "") controller.openLibraryId(id)
                             else controller.openLibrary(index)
@@ -564,13 +590,6 @@ Window {
             anchors.fill: parent
             visible: controller.view === "reader"
 
-            Timer {
-                id: colorRefreshTimer
-                interval: 80
-                repeat: false
-                onTriggered: controller.highQualityRefresh()
-            }
-
             Image {
                 id: pageImage
                 anchors.top: parent.top
@@ -583,13 +602,6 @@ Window {
                 asynchronous: true
                 smooth: false
                 cache: false
-
-                onStatusChanged: {
-                    if (status === Image.Ready && controller.view === "reader" &&
-                            controller.pageSource !== "" && !appSettings.grayscale) {
-                        colorRefreshTimer.restart()
-                    }
-                }
 
                 MouseArea {
                     anchors.fill: parent
@@ -675,14 +687,6 @@ Window {
                 }
 
                 ActionButton {
-                    width: 100
-                    height: 64
-                    visible: !appSettings.grayscale
-                    text: appSettings.colorBoost ? "Vivid:on" : "Vivid:off"
-                    onClicked: controller.toggleColorBoost()
-                }
-
-                ActionButton {
                     width: 90
                     height: 64
                     text: "Delete"
@@ -752,6 +756,11 @@ Window {
             visible: controller.showTrustPrompt
             color: "#99000000"
             z: 10
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {}
+            }
 
             Rectangle {
                 anchors.centerIn: parent

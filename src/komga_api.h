@@ -40,6 +40,7 @@ class KomgaApi : public QObject {
   Q_INVOKABLE int updateProgress(const QString &bookId, int page, bool completed = false);
   Q_INVOKABLE int downloadPage(const QString &bookId, int page, const QString &destination);
   Q_INVOKABLE QString pageUrl(const QString &bookId, int page) const;
+  Q_INVOKABLE void cancelRequest(int requestId);
 
  signals:
   void librariesReceived(int requestId, const QJsonArray &items);

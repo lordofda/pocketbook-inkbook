@@ -32,6 +32,12 @@ bool isPinningCompatible(QSslError::SslError error) {
   }
 }
 
+bool isLoopbackHost(const QUrl &url) {
+  const QString host = url.host().toLower();
+  return host == QStringLiteral("localhost") || host == QStringLiteral("127.0.0.1") ||
+         host == QStringLiteral("::1");
+}
+
 }
 
 KomgaApi::KomgaApi(Settings *settings, QObject *parent)
@@ -57,7 +63,11 @@ QNetworkRequest KomgaApi::makeRequest(const QString &path, bool json,
 }
 
 QString KomgaApi::endpoint(const QString &path) const {
-  return settings_->serverUrl() + path;
+  QString base = settings_->serverUrl();
+  while (base.endsWith(QLatin1Char('/'))) {
+    base.chop(1);
+  }
+  return base + path;
 }
 
 QString KomgaApi::encodedSegment(const QString &value) const {
@@ -68,6 +78,26 @@ int KomgaApi::beginRequest(const QString &purpose, const QNetworkRequest &reques
                            const QByteArray &body, const QString &bookId,
                            const QString &destination) {
   const int id = nextId_++;
+  auto failNow = [this, purpose](int requestId, const QString &message) {
+    QMetaObject::invokeMethod(
+        this,
+        [this, purpose, requestId, message]() {
+          if (purpose == QStringLiteral("download")) {
+            emit downloadFinished(requestId, false, message);
+          } else {
+            emit requestFailed(requestId, message);
+          }
+        },
+        Qt::QueuedConnection);
+  };
+
+  const QString scheme = request.url().scheme();
+  if (scheme != QStringLiteral("https") &&
+      !(scheme == QStringLiteral("http") && isLoopbackHost(request.url()))) {
+    failNow(id, QStringLiteral("Server URL must use HTTPS"));
+    return id;
+  }
+
   ApiRequest pending;
   pending.id = id;
   pending.purpose = purpose;
@@ -77,7 +107,7 @@ int KomgaApi::beginRequest(const QString &purpose, const QNetworkRequest &reques
   if (!destination.isEmpty()) {
     const QFileInfo info(destination);
     if (!QDir().mkpath(info.absolutePath())) {
-      emit downloadFinished(id, false, QStringLiteral("Cannot create download directory"));
+      failNow(id, QStringLiteral("Cannot create download directory"));
       return id;
     }
     pending.file = new QFile(destination + QStringLiteral(".part"));
@@ -85,7 +115,7 @@ int KomgaApi::beginRequest(const QString &purpose, const QNetworkRequest &reques
       const QString message = pending.file->errorString();
       delete pending.file;
       pending.file = nullptr;
-      emit downloadFinished(id, false, message);
+      failNow(id, message);
       return id;
     }
   }
@@ -211,6 +241,27 @@ QString KomgaApi::pageUrl(const QString &bookId, int page) const {
   return endpoint(QStringLiteral("/api/v1/books/%1/pages/%2")
                       .arg(encodedSegment(bookId))
                       .arg(page));
+}
+
+void KomgaApi::cancelRequest(int requestId) {
+  for (auto it = requests_.begin(); it != requests_.end(); ++it) {
+    if (it.value().id != requestId) {
+      continue;
+    }
+    QNetworkReply *reply = it.key();
+    const ApiRequest pending = it.value();
+    requests_.erase(it);
+    if (pending.file != nullptr) {
+      pending.file->flush();
+      pending.file->close();
+      pending.file->remove();
+      delete pending.file;
+    }
+    reply->abort();
+    reply->deleteLater();
+    emit busyChanged(!requests_.isEmpty());
+    return;
+  }
 }
 
 void KomgaApi::onSslErrors(const QList<QSslError> &errors) {

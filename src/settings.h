@@ -13,7 +13,6 @@ class Settings : public QObject {
   Q_PROPERTY(QString certFingerprint READ certFingerprint WRITE setCertFingerprint NOTIFY configurationChanged)
   Q_PROPERTY(QString certPem READ certPem WRITE setCertPem NOTIFY configurationChanged)
   Q_PROPERTY(bool grayscale READ grayscale WRITE setGrayscale NOTIFY configurationChanged)
-  Q_PROPERTY(bool colorBoost READ colorBoost WRITE setColorBoost NOTIFY configurationChanged)
   Q_PROPERTY(bool hideStatusBar READ hideStatusBar WRITE setHideStatusBar NOTIFY configurationChanged)
   Q_PROPERTY(bool configured READ configured NOTIFY configurationChanged)
   Q_PROPERTY(bool trusted READ trusted NOTIFY configurationChanged)
@@ -33,7 +32,6 @@ class Settings : public QObject {
   QString certFingerprint() const;
   QString certPem() const;
   bool grayscale() const;
-  bool colorBoost() const;
   bool hideStatusBar() const;
   bool configured() const;
   bool trusted() const;
@@ -51,7 +49,6 @@ class Settings : public QObject {
   void setCertFingerprint(const QString &value);
   void setCertPem(const QString &value);
   void setGrayscale(bool value);
-  void setColorBoost(bool value);
   void setHideStatusBar(bool value);
   void setActiveAccountName(const QString &value);
 

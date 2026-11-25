@@ -43,7 +43,7 @@ Rectangle {
         anchors.leftMargin: 18
         anchors.top: parent.top
         anchors.topMargin: 52
-        width: parent.width - 36
+        width: parent.width - 36 - row.reservedWidth
         text: row.subtitle
         font.pixelSize: 22
         color: "#444444"

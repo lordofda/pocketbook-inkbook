@@ -39,6 +39,17 @@ Rectangle {
             color: "#111111"
             echoMode: field.password ? TextInput.Password : TextInput.Normal
             selectByMouse: true
+
+            Keys.onReturnPressed: function (event) {
+                input.focus = false
+                deviceInfo.hideKeyboard()
+                event.accepted = true
+            }
+            Keys.onEscapePressed: function (event) {
+                input.focus = false
+                deviceInfo.hideKeyboard()
+                event.accepted = true
+            }
         }
 
         Text {

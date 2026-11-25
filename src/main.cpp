@@ -27,7 +27,6 @@ void selectPlatformPlugin() {
 
 int main(int argc, char *argv[]) {
   selectPlatformPlugin();
-  QCoreApplication::setSetuidAllowed(true);
 
   const ScreenSize screen = openInkViewScreen();
   QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);

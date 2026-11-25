@@ -16,9 +16,10 @@
 struct PendingAction {
   QString name;
   QString id;
+  QString title;
   int page = 0;
   bool manual = false;
-  bool force = false;
+  int epoch = 0;
 };
 
 class AppController : public QObject {
@@ -47,7 +48,6 @@ class AppController : public QObject {
   Q_PROPERTY(int downloadTotal READ downloadTotal NOTIFY stateChanged)
   Q_PROPERTY(bool currentBookDownloaded READ currentBookDownloaded NOTIFY stateChanged)
   Q_PROPERTY(bool grayscale READ grayscale NOTIFY stateChanged)
-  Q_PROPERTY(bool colorBoost READ colorBoost NOTIFY stateChanged)
   Q_PROPERTY(QString currentSeriesId READ currentSeriesId NOTIFY stateChanged)
   Q_PROPERTY(bool bookCompleted READ bookCompleted NOTIFY stateChanged)
   Q_PROPERTY(QString nextBookId READ nextBookId NOTIFY stateChanged)
@@ -81,7 +81,6 @@ class AppController : public QObject {
   int downloadTotal() const;
   bool currentBookDownloaded() const;
   bool grayscale() const;
-  bool colorBoost() const;
   QString currentSeriesId() const;
   bool bookCompleted() const;
   QString nextBookId() const;
@@ -119,7 +118,6 @@ class AppController : public QObject {
   Q_INVOKABLE void syncCurrentProgress();
   Q_INVOKABLE void toggleStatusBar();
   void applyStatusBar();
-  Q_INVOKABLE void noteRowTap(const QString &id, int row);
   Q_INVOKABLE void back();
   Q_INVOKABLE void downloadCurrentBook();
   Q_INVOKABLE void downloadBookId(const QString &id);
@@ -128,8 +126,6 @@ class AppController : public QObject {
   Q_INVOKABLE void setPage(int page);
   Q_INVOKABLE void deleteCurrentBook();
   Q_INVOKABLE void toggleGrayscale();
-  Q_INVOKABLE void toggleColorBoost();
-  Q_INVOKABLE void highQualityRefresh();
   Q_INVOKABLE void exit();
 
  signals:
@@ -153,6 +149,11 @@ class AppController : public QObject {
  private:
   void setView(const QString &view);
   void setStatus(const QString &status);
+  void insertPending(int requestId, const QString &name, const QString &id = QString(),
+                     int page = 0, bool manual = false, const QString &title = QString());
+  bool isCurrent(const PendingAction &action) const;
+  void clearReaderState();
+  void beginDownload(const QString &id, const QString &title);
   void resetForAccount(bool stayInSetup = false);
   void finishConnection();
   void populateLibraries(const QJsonArray &items);
@@ -166,8 +167,8 @@ class AppController : public QObject {
                        const QString &seriesId, int page, int pageCount);
   void refreshNextBook();
   double bookSortNumber(const QJsonObject &object) const;
-  void beginProgressSync(bool manual, bool force = false);
-  void updatePage(int page, bool explicitPageChange = false);
+  void beginProgressSync(bool manual);
+  void updatePage(int page);
   void scheduleProgressSync();
   void startNextDownload();
   void clearDownloads();
@@ -205,10 +206,14 @@ class AppController : public QObject {
   QString currentBookId_;
   QString currentBookTitle_;
   QString pageSource_;
+  QString downloadTargetId_;
   QString downloadBookId_;
   QVector<int> downloadQueue_;
   int downloadQueueIndex_;
   int activeDownloadId_;
+  int syncCheckId_;
+  int syncWriteId_;
+  int requestEpoch_;
   int currentPage_;
   int pageCount_;
   int downloadedCount_;
@@ -220,5 +225,4 @@ class AppController : public QObject {
   bool recentSeries_;
   bool onDeckBooks_;
   bool bookCompleted_;
-  bool forceLocalProgress_;
 };

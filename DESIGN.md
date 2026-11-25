@@ -6,7 +6,7 @@ This document records the design decisions, architecture, UI behavior, and bug f
 
 The app is an experimental, AI-authored Qt Quick / C++ client. It is sideloaded as `komga-reader.app`, connects to a user-supplied Komga server, downloads whole books for offline reading, renders pages locally in grayscale, and syncs reading progress back to Komga.
 
-The current released line is `v1.2.2` on `main`. An unreleased test branch, `test/no-download-progress`, contains a pending fix so row downloads do not write or sync reading progress.
+The released line is `v1.2.3` on `main`. The unreleased `cleanup/code-review` branch rolls back slow color preprocessing, removes the InkView reader prototype, and applies the review fixes described below.
 
 ## 2. Product goals
 
@@ -78,7 +78,7 @@ QML does not create business objects. It binds to context properties and calls `
 
 Navigation methods normalize state before setting the view: clear transient models, clear reader-only state, reset filters when appropriate, and set status text. `setView()` emits `stateChanged`; QML shows the corresponding screen.
 
-A `pending_` map tracks in-flight REST requests by request id. Each request carries an action name, id, page, and manual/automatic flag. Responses are routed back into controller slots that populate models, prompt for TLS trust, handle downloads, or reconcile progress.
+A `pending_` map tracks in-flight REST requests by request id. Each request carries an action name, id, title, page, manual/automatic flag, and request epoch. Responses are routed back into controller slots that validate the epoch and current view before populating models, prompting for TLS trust, handling downloads, or reconciling progress.
 
 ### 4.4 Data flow
 
@@ -140,14 +140,15 @@ A key design decision is to separate:
 - **Default account**: opened on startup.
 - **Active account**: the account currently loaded in the session.
 
-`switchAccount()` changes only the active account. `setDefaultAccount()` changes only the startup default. `ensureAccounts()` repairs invalid values and makes the default active at startup.
+`switchAccount()` changes only the active account. `setDefaultAccount()` sets the startup default and makes that account active; `AppController` resets session state only when the active account actually changes. `ensureAccounts()` repairs invalid values and makes the default active at startup.
 
 The account editor shows both the active and default account names. The setup form offers **Set as default** when the active account is not already the default.
 
 ### 5.3 Security decisions
 
 - API keys are entered at runtime and stored per account in plaintext so the app can reconnect after restart. The device must be protected; dedicated Komga API keys are recommended.
-- TLS uses first-connection fingerprint pinning. The fingerprint is shown for verification before trust.
+- TLS uses first-connection fingerprint pinning. The fingerprint is shown for verification before trust and must match the trusted PEM certificate.
+- Remote plaintext HTTP is rejected; the API key is only sent over HTTPS or loopback HTTP.
 - No global SSL verification bypass is used.
 - The initial untrusted certificate probe does not send the API key.
 - No secrets are committed to the repository.
@@ -253,7 +254,7 @@ Used Komga endpoints include:
 - `/api/v1/books/{id}/progress`
 - `/api/v1/books/{id}/pages/{page}/raw`
 
-All authenticated requests use `X-API-Key`.
+Authenticated requests use `X-API-Key` over HTTPS or loopback HTTP only.
 
 ### 7.2 Series sorting
 
@@ -266,11 +267,12 @@ In-progress books remain sorted by read date rather than book number.
 
 ### 7.3 Progress reconciliation
 
-Before pushing local progress, the app fetches the book from Komga:
+Before pushing local progress, the app fetches the book from Komga and re-reads the current local page:
 
 - If the server page is ahead, local state jumps to the server page.
 - Otherwise local progress is pushed.
 - Completion pushes `completed:true`.
+- Sync runs only from the reader for online books, and overlapping sync checks are ignored.
 
 Progress writes are local, then debounced to the server. This protects against overwriting newer server progress after offline reading.
 
@@ -278,7 +280,7 @@ Progress writes are local, then debounced to the server. This protects against o
 
 Downloads and reading progress are separate operations. A row **Download** must not mark a book as in progress.
 
-Released `v1.2.2` still had a path where a row download could call the reader's page-update logic. The unreleased `test/no-download-progress` branch fixes this by only updating the current page when the active view is `reader` and the book is not an offline copy.
+The cleanup branch separates download state from reader state. Row downloads no longer change `currentBookId_`, `currentPage_`, or progress. Page-update and progress-sync calls only run when the active view is `reader` and the downloaded book is the current online book.
 
 ## 8. Offline storage design
 
@@ -306,7 +308,7 @@ Released `v1.2.2` still had a path where a row download could call the reader's 
 | No list scrolling affordance | Added custom `ListScroller` with Up/Down and a draggable bar. |
 | Up/Down buttons jumped incorrectly | Buttons now use the first visible row via `indexAt()` and `positionViewAtIndex(..., ListView.Beginning)`. |
 | Download reset scroll position | Replaced full model rebuilds with in-place `markDownloaded()` data changes during and after download. |
-| Download marked book in progress | Pending fix on `test/no-download-progress`: reader page update only when actually in reader. |
+| Download marked book in progress | Row downloads keep separate target/title state; reader updates only for the active online book. |
 | Avoid force-pushing released tags | Used new incremental tags `v1.2.1` and `v1.2.2` instead of moving `v1.2.0`. |
 
 ## 10. Model update strategy
@@ -315,7 +317,7 @@ Released `v1.2.2` still had a path where a row download could call the reader's 
 
 To preserve scroll position during downloads, `ListModel::markDownloaded(id, downloaded)` was added. It:
 
-1. Finds the visible row for the book id.
+1. Finds all visible rows for the book id.
 2. Updates `downloaded` and the `OFFLINE` badge in place.
 3. Emits `dataChanged()` for `DownloadedRole` and `BadgeRole`.
 4. Leaves `visible_` unchanged because filters do not depend on download state.
@@ -356,14 +358,15 @@ Releases:
 | `v1.2.0` | `b9e4908` | Default accounts, delete confirmation, row downloads, next-book/Open series, numeric sorting, scroll controls, keyboard dismissal. |
 | `v1.2.1` | `85c8542` | Edit Account opens setup form for configured accounts. |
 | `v1.2.2` | `d3099b8` | Scroller buttons and download scroll-position fixes. |
+| `v1.2.3` | `20b6db2` | Color preprocessing, HQ refresh, account/default fixes, progress-push fix. |
 
-`v1.2.0` has a tag but no public GitHub release page. `v1.2.1` and `v1.2.2` have release pages with zipped binaries.
+`v1.2.0` has a tag but no public GitHub release page. `v1.2.1`, `v1.2.2`, and `v1.2.3` have release pages with zipped binaries.
 
 ## 12. Branching state at time of writing
 
-- `main`: released line at `d3099b8` / `v1.2.2`.
-- `test/no-download-progress`: branch at `299574c`; includes the pending no-progress-on-download fix. Not released and not intended to be merged until device testing confirms behavior.
-- `docs/design-spec`: branch used to add this document, then merged into `main`.
+- `main`: released line at `20b6db2` / `v1.2.3`.
+- `test/inkview-reader`: local prototype branch with an experimental native InkView page renderer. Not released.
+- `cleanup/code-review`: unreleased rollback and professional-review cleanup branch.
 
 ## 13. Known limitations
 
@@ -398,6 +401,6 @@ Device acceptance checks:
 - Whole-book download and offline read.
 - Scrollbar and Up/Down behavior.
 - Download does not reset scroll position.
-- Download does not create reading progress on the unreleased test branch.
+- Download does not create reading progress.
 - Progress sync with server-ahead protection.
 - Reader controls and status bar toggle.

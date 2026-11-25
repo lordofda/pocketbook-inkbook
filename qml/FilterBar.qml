@@ -73,7 +73,7 @@ Item {
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
             width: 84
-            height: 44
+            height: 56
             color: "#e6e6e6"
             border.color: "#888888"
             border.width: 1

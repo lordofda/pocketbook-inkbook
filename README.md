@@ -11,13 +11,13 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 - Native PocketBook app, sideloaded as `komga-reader.app`.
 - Komga HTTPS connection with runtime-entered API key.
 - First-connection TLS certificate fingerprint pinning; no global SSL bypass.
-- Multiple Komga accounts: add, edit, switch, set default, and delete from the **Accounts** top menu; each account has its own URL, API key, TLS pin, and book cache. **Save** stores edited details, **Connect** saves and tests them, and **Set as default** is a separate action.
+- Multiple Komga accounts: add, edit, switch, set default, and delete from the **Accounts** top menu; each account has its own URL, API key, TLS pin, and book cache. **Save** stores edited details, **Connect** saves and tests them, and **Default** sets the startup account.
 - Library, series, books, and in-progress browsing from the Home sections.
 - Recently added series and on-deck books, using Komga's `/api/v1/series/new` and `/api/v1/books/ondeck` views.
 - Search and A–Z title filtering on every list view, with a Done button to dismiss the on-screen keyboard.
 - Finishing a book marks it complete in Komga and offers the next book in the series when available.
 - Open series action on book rows and in the reader for downloading more of a series.
-- Whole-book offline downloads with local grayscale conversion; color mode applies an e-ink color boost with contrast/saturation expansion and Floyd–Steinberg dithering, stores lossless PNG, and requests an InkView high-quality refresh after the page image loads. Re-download existing books to apply the color processing.
+- Whole-book offline downloads with local grayscale conversion.
 - Offline books browser: open downloaded books without a server, delete local copies, and see cached size/count.
 - Progress sync:
   - Automatic debounced sync after page turns.
@@ -41,6 +41,7 @@ The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. 
 - API keys are stored in plaintext per account in `/mnt/ext1/.komga-reader/settings.ini` so the app can reconnect offline/after restart. Use dedicated Komga API keys and protect the device.
 - The TLS certificate fingerprint is pinned on first trusted connection. If the server certificate changes, the app will refuse to connect until the stored pin is cleared or updated.
 - No API key is sent during the initial untrusted certificate probe.
+- Remote plaintext HTTP is rejected; API keys are sent only over HTTPS or loopback HTTP.
 
 ## Build
 

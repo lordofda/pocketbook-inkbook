@@ -56,20 +56,29 @@ void ListModel::setItems(const QVector<ListItem> &items) {
 }
 
 void ListModel::markDownloaded(const QString &id, bool downloaded) {
+  bool changed = false;
+  for (ListItem &item : items_) {
+    if (item.id != id) {
+      continue;
+    }
+    item.downloaded = downloaded;
+    if (downloaded) {
+      item.badge = QStringLiteral("OFFLINE");
+    } else if (item.badge == QStringLiteral("OFFLINE")) {
+      item.badge = item.page > 0 ? QStringLiteral("READ") : QString();
+    }
+    changed = true;
+  }
+  if (!changed) {
+    return;
+  }
   for (int row = 0; row < visible_.size(); ++row) {
     const int itemIndex = visible_.at(row);
     if (items_.at(itemIndex).id != id) {
       continue;
     }
-    items_[itemIndex].downloaded = downloaded;
-    if (downloaded) {
-      items_[itemIndex].badge = QStringLiteral("OFFLINE");
-    } else if (items_[itemIndex].badge == QStringLiteral("OFFLINE")) {
-      items_[itemIndex].badge = items_[itemIndex].page > 0 ? QStringLiteral("READ") : QString();
-    }
     const QModelIndex modelIndex = index(row);
     emit dataChanged(modelIndex, modelIndex, {DownloadedRole, BadgeRole});
-    return;
   }
 }
 

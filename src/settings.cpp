@@ -20,7 +20,6 @@ constexpr const char *kApiKeyKey = "server/apiKey";
 constexpr const char *kFingerprintKey = "server/certFingerprint";
 constexpr const char *kPemKey = "server/certPem";
 constexpr const char *kGrayscaleKey = "reader/grayscale";
-constexpr const char *kColorBoostKey = "reader/colorBoost";
 constexpr const char *kHideStatusBarKey = "reader/hideStatusBar";
 constexpr const char *kActiveAccountKey = "general/activeAccount";
 constexpr const char *kDefaultAccountKey = "general/defaultAccount";
@@ -162,10 +161,6 @@ bool Settings::grayscale() const {
   return settings_.value(QString::fromLatin1(kGrayscaleKey), true).toBool();
 }
 
-bool Settings::colorBoost() const {
-  return settings_.value(QString::fromLatin1(kColorBoostKey), true).toBool();
-}
-
 bool Settings::hideStatusBar() const {
   return settings_.value(QString::fromLatin1(kHideStatusBarKey), true).toBool();
 }
@@ -275,12 +270,6 @@ void Settings::setGrayscale(bool value) {
   emit configurationChanged();
 }
 
-void Settings::setColorBoost(bool value) {
-  settings_.setValue(QString::fromLatin1(kColorBoostKey), value);
-  persist();
-  emit configurationChanged();
-}
-
 void Settings::setHideStatusBar(bool value) {
   settings_.setValue(QString::fromLatin1(kHideStatusBarKey), value);
   persist();
@@ -360,7 +349,8 @@ bool Settings::saveConnection(const QString &url, const QString &key, const QStr
 
 bool Settings::trustCertificate(const QString &fingerprint, const QString &pem) {
   const QString normalized = normalizeFingerprint(fingerprint);
-  if (normalized.size() != 64) {
+  const QString pemFingerprint = fingerprintFromPem(pem);
+  if (normalized.size() != 64 || pemFingerprint.isEmpty() || pemFingerprint != normalized) {
     return false;
   }
   setAccountValue(QStringLiteral("fingerprint"), normalized);
@@ -419,7 +409,10 @@ bool Settings::removeAccount(const QString &id) {
   const QString defaultId = defaultAccountId();
   settings_.remove(accountGroupPath(id));
   const QStringList remaining = accountIds();
-  const QString replacement = remaining.isEmpty() ? QString() : remaining.first();
+  QString replacement = remaining.isEmpty() ? QString() : remaining.first();
+  if (!defaultId.isEmpty() && defaultId != id && remaining.contains(defaultId)) {
+    replacement = defaultId;
+  }
   if (active == id) {
     settings_.setValue(QString::fromLatin1(kActiveAccountKey), replacement);
   }
