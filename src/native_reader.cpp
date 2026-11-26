@@ -4,6 +4,7 @@
 #include "settings.h"
 
 #include <QByteArray>
+#include <QCoreApplication>
 #include <QFile>
 #include <QQuickWindow>
 #include <QUrl>
@@ -19,6 +20,14 @@ constexpr int kButtonCount = 6;
 
 int centerOffset(int total, int extent) {
   return std::max(0, (total - extent) / 2);
+}
+
+void fullRefresh() {
+  if (HQUpdateSupported() != 0) {
+    FullUpdateHQ();
+  } else {
+    FullUpdate();
+  }
 }
 
 const char *buttonLabel(int index) {
@@ -150,11 +159,19 @@ void NativeReader::close() {
     previousHandler_ = nullptr;
   }
   path_.clear();
+  setSystemStatusBarVisible(!settings_->hideStatusBar());
+  const int width = std::max(ScreenWidth(), 1);
+  const int height = std::max(ScreenHeight(), 1);
+  FillArea(0, 0, width, height, WHITE);
+  fullRefresh();
   if (window_ != nullptr) {
     window_->show();
+    window_->raise();
+    window_->requestActivate();
+    window_->update();
+    QCoreApplication::processEvents();
   }
-  setSystemStatusBarVisible(!settings_->hideStatusBar());
-  FullUpdateHQ();
+  fullRefresh();
   emit activeChanged();
   emit closed();
 }
@@ -278,15 +295,10 @@ void NativeReader::draw() {
   DrawBitmap(centerOffset(width, scaled->width), centerOffset(height, scaled->height), scaled);
   drawChrome();
 
-  const bool hq = HQUpdateSupported() != 0;
   if (fullUpdateNeeded_) {
-    if (hq) {
-      FullUpdateHQ();
-    } else {
-      FullUpdate();
-    }
+    fullRefresh();
     fullUpdateNeeded_ = false;
-  } else if (hq) {
+  } else if (HQUpdateSupported() != 0) {
     PartialUpdateHQ(0, 0, width, height);
   } else {
     PartialUpdate(0, 0, width, height);
