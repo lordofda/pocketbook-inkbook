@@ -25,6 +25,7 @@ class Settings : public QObject {
 
  public:
   explicit Settings(QObject *parent = nullptr);
+  explicit Settings(const QString &cacheRoot, QObject *parent = nullptr);
 
   QString serverUrl() const;
   QString apiKey() const;

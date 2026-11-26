@@ -361,6 +361,14 @@ Validation:
   qml/ListScroller.qml
 ```
 
+Host unit tests use a separate desktop-Qt CMake project and never touch the ARM build directory:
+
+```bash
+cmake -S tests/host -B build-host -G Ninja
+cmake --build build-host
+ctest --test-dir build-host --output-on-failure
+```
+
 Releases:
 
 - GitHub rejects raw `.app` assets, so release assets are zipped as `komga-reader-vX.Y.Z.zip`.
@@ -398,24 +406,25 @@ Releases:
 - The custom scrollbar approximates position rather than using platform-native Controls.
 - Large libraries still depend on network speed and server response time.
 - Status bar behavior depends on InkView firmware support.
-- There is no automated test suite; verification relies on `qmllint`, ARM build success, and manual device testing.
+- Host unit tests cover settings/account logic; InkView behavior still relies on ARM build success and manual device testing.
 
 ## 14. Verification checklist
 
 Before release:
 
 1. `qmllint` passes for every QML file in `qml/komga.qrc`.
-2. `./build.sh` succeeds and produces a 32-bit ARM `komga-reader.app`.
-3. `git diff --check` passes.
-4. Binary SHA-256 is recorded in release notes.
-5. Release asset is a zip containing only `komga-reader.app`.
-6. Tag points at the intended commit.
-7. No secrets are present in the working tree or commit history.
+2. Host CMake tests pass via `ctest --test-dir build-host --output-on-failure`.
+3. `./build.sh` succeeds and produces a 32-bit ARM `komga-reader.app`.
+4. `git diff --check` passes.
+5. Binary SHA-256 is recorded in release notes.
+6. Release asset is a zip containing only `komga-reader.app`.
+7. Tag points at the intended commit.
+8. No secrets are present in the working tree or commit history.
 
 Device acceptance checks:
 
 - Setup and TLS trust flow.
-- Account add, edit, switch, set default, delete with confirmation.
+- Account add, edit, switch, set/clear startup, delete with confirmation.
 - Libraries, series, books, Recent, On Deck, In progress, and Offline browsing.
 - Search/filter with keyboard dismissal.
 - Numeric series ordering.
