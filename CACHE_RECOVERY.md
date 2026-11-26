@@ -38,7 +38,7 @@ To map an account name to its `<account-id>`, open:
 /mnt/ext1/.komga-reader/settings.ini
 ```
 
-Qt writes account sections as `[accounts/<account-id>]`. Each section contains `name=...`, `url=...`, `apiKey=...`, `fingerprint=...` (the TLS pin), and `pem=...`. General values are written under `[%General]`: `startupAccount=...` is the account opened at launch, and `activeAccount=...` is the currently selected account.
+Qt writes account sections as `[accounts/<account-id>]`. Each section contains `name=...`, `url=...`, `apiKey=...`, `fingerprint=...` (the TLS pin), and `pem=...`. General values are written under `[%General]`: `startupAccount=...` is the account opened at launch when set, and `activeAccount=...` is the currently selected account used when startup is cleared.
 
 ## Recover manually
 

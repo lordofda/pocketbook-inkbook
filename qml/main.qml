@@ -315,7 +315,7 @@ Window {
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         width: 420
-                        text: "Startup: " + appSettings.defaultAccountName
+                        text: "Startup: " + appSettings.startupAccountName
                         font.pixelSize: 22
                         color: "#444444"
                         elide: Text.ElideRight
@@ -324,11 +324,11 @@ Window {
                     ActionButton {
                         width: 210
                         height: 56
-                        text: appSettings.defaultAccountId === appSettings.activeAccountId
+                        text: appSettings.startupAccountId === appSettings.activeAccountId
                               ? "Startup account"
                               : "Set as startup"
-                        active: appSettings.defaultAccountId !== appSettings.activeAccountId
-                        onClicked: controller.setDefaultAccount(appSettings.activeAccountId)
+                        active: appSettings.startupAccountId !== appSettings.activeAccountId
+                        onClicked: controller.setStartupAccount(appSettings.activeAccountId)
                     }
                 }
 
@@ -424,10 +424,18 @@ Window {
                     onClicked: controller.newAccount()
                 }
 
+                ActionButton {
+                    width: 200
+                    height: 64
+                    text: "Clear startup"
+                    active: appSettings.startupAccountId !== ""
+                    onClicked: controller.clearStartupAccount()
+                }
+
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: Math.max(100, parent.width - 260)
-                    text: "Active: " + appSettings.activeAccountName + " · Startup: " + appSettings.defaultAccountName + " (Use = active · Startup = startup)"
+                    width: Math.max(100, parent.width - 470)
+                    text: "Active: " + appSettings.activeAccountName + " · Startup: " + appSettings.startupAccountName + " (Use = active · Startup = startup)"
                     font.pixelSize: 24
                     color: "#444444"
                     elide: Text.ElideRight
@@ -454,10 +462,10 @@ Window {
                     name: modelData.name
                     serverUrl: modelData.serverUrl
                     active: modelData.active
-                    isDefault: modelData.isDefault
+                    isStartup: modelData.isStartup
                     configured: modelData.configured
                     onUseClicked: controller.switchAccount(modelData.id)
-                    onDefaultClicked: controller.setDefaultAccount(modelData.id)
+                    onStartupClicked: controller.setStartupAccount(modelData.id)
                     onEditClicked: controller.editAccount(modelData.id)
                     onDeleteClicked: {
                         accountsView.deleteAccountId = modelData.id

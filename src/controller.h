@@ -112,7 +112,8 @@ class AppController : public QObject {
   Q_INVOKABLE void openAccounts();
   Q_INVOKABLE void newAccount();
   Q_INVOKABLE void switchAccount(const QString &id);
-  Q_INVOKABLE void setDefaultAccount(const QString &id);
+  Q_INVOKABLE void setStartupAccount(const QString &id);
+  Q_INVOKABLE void clearStartupAccount();
   Q_INVOKABLE void editAccount(const QString &id);
   Q_INVOKABLE void deleteAccount(const QString &id);
   Q_INVOKABLE void openOffline();

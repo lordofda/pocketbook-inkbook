@@ -35,7 +35,7 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 3. Disconnect/Eject the device and launch **Komga Reader** from Applications.
 4. Enter the Komga HTTPS URL and API key, then verify and trust the displayed SHA-256 certificate fingerprint.
 
-The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; the startup account is stored separately from the active account, and book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/<hashed-book-id>/`. The older temporary `books/books/<hashed-book-id>/` layout is still recognized. Changing or clearing a configured server URL/API key clears that account's cache. Existing single-account installs are migrated to a `default` account on first launch.
+The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; `startupAccount` is authoritative at launch when set, and `activeAccount` is used when startup is cleared. Book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/<hashed-book-id>/`. The older temporary `books/books/<hashed-book-id>/` layout is still recognized. Changing or clearing a configured server URL/API key clears that account's cache.
 If cached books do not appear after upgrading, see [CACHE_RECOVERY.md](CACHE_RECOVERY.md). Books cached by older grayscale builds must be downloaded again for vivid color.
 
 ## Security notes

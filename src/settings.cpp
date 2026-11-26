@@ -4,7 +4,6 @@
 #include <QDir>
 #include <QFile>
 #include <QFileDevice>
-#include <QFileInfo>
 #include <QJsonValue>
 #include <QSslCertificate>
 #include <QUuid>
@@ -15,14 +14,9 @@
 
 namespace {
 
-constexpr const char *kServerUrlKey = "server/url";
-constexpr const char *kApiKeyKey = "server/apiKey";
-constexpr const char *kFingerprintKey = "server/certFingerprint";
-constexpr const char *kPemKey = "server/certPem";
 constexpr const char *kHideStatusBarKey = "reader/hideStatusBar";
 constexpr const char *kActiveAccountKey = "general/activeAccount";
 constexpr const char *kStartupAccountKey = "general/startupAccount";
-constexpr const char *kDefaultAccountKey = "general/defaultAccount";
 constexpr const char *kAccountsRoot = "accounts";
 
 QString defaultCacheRoot() {
@@ -45,7 +39,7 @@ Settings::Settings(QObject *parent)
     settingsFile.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
     settingsFile.close();
   }
-  ensureAccounts();
+  initializeAccounts();
   QFile file(settings_.fileName());
   if (file.exists()) {
     file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
@@ -70,82 +64,18 @@ void Settings::setAccountValue(const QString &key, const QString &value,
   settings_.setValue(accountKey(key, id), value);
 }
 
-void Settings::ensureAccounts() {
-  migrateLegacySettings();
-  migrateLegacyCache();
-  QStringList ids = accountIds();
-  if (ids.isEmpty()) {
+void Settings::initializeAccounts() {
+  if (accountIds().isEmpty()) {
     const QString id = QStringLiteral("default");
     settings_.setValue(accountKey(QStringLiteral("name"), id), QStringLiteral("Default"));
-    ids.append(id);
+    settings_.setValue(QString::fromLatin1(kStartupAccountKey), id);
+    settings_.setValue(QString::fromLatin1(kActiveAccountKey), id);
   }
-  const QString storedActive = settings_.value(QString::fromLatin1(kActiveAccountKey)).toString();
-  QString active = ids.contains(storedActive) ? storedActive : QString();
-  QString startup = settings_.value(QString::fromLatin1(kStartupAccountKey)).toString();
-  if (startup.isEmpty()) {
-    startup = settings_.value(QString::fromLatin1(kDefaultAccountKey)).toString();
+  const QString startup = startupAccountId();
+  if (!startup.isEmpty()) {
+    settings_.setValue(QString::fromLatin1(kActiveAccountKey), startup);
   }
-  if (!ids.contains(startup)) {
-    const QString legacy = settings_.value(QString::fromLatin1(kDefaultAccountKey)).toString();
-    if (ids.contains(legacy)) {
-      startup = legacy;
-    } else if (ids.contains(active)) {
-      startup = active;
-    } else {
-      startup = ids.first();
-    }
-  }
-  if (active.isEmpty()) {
-    active = startup;
-  }
-  settings_.setValue(QString::fromLatin1(kStartupAccountKey), startup);
-  settings_.setValue(QString::fromLatin1(kDefaultAccountKey), startup);
-  settings_.setValue(QString::fromLatin1(kActiveAccountKey), active);
   persist();
-}
-
-void Settings::migrateLegacySettings() {
-  if (!settings_.contains(QString::fromLatin1(kServerUrlKey)) &&
-      !settings_.contains(QString::fromLatin1(kApiKeyKey)) &&
-      !settings_.contains(QString::fromLatin1(kFingerprintKey)) &&
-      !settings_.contains(QString::fromLatin1(kPemKey))) {
-    return;
-  }
-
-  const QString id = QStringLiteral("default");
-  settings_.setValue(accountKey(QStringLiteral("name"), id), QStringLiteral("Default"));
-  if (settings_.contains(QString::fromLatin1(kServerUrlKey))) {
-    settings_.setValue(accountKey(QStringLiteral("url"), id),
-                       settings_.value(QString::fromLatin1(kServerUrlKey)));
-  }
-  if (settings_.contains(QString::fromLatin1(kApiKeyKey))) {
-    settings_.setValue(accountKey(QStringLiteral("apiKey"), id),
-                       settings_.value(QString::fromLatin1(kApiKeyKey)));
-  }
-  if (settings_.contains(QString::fromLatin1(kFingerprintKey))) {
-    settings_.setValue(accountKey(QStringLiteral("fingerprint"), id),
-                       settings_.value(QString::fromLatin1(kFingerprintKey)));
-  }
-  if (settings_.contains(QString::fromLatin1(kPemKey))) {
-    settings_.setValue(accountKey(QStringLiteral("pem"), id),
-                       settings_.value(QString::fromLatin1(kPemKey)));
-  }
-  settings_.setValue(QString::fromLatin1(kActiveAccountKey), id);
-  settings_.remove(QString::fromLatin1(kServerUrlKey));
-  settings_.remove(QString::fromLatin1(kApiKeyKey));
-  settings_.remove(QString::fromLatin1(kFingerprintKey));
-  settings_.remove(QString::fromLatin1(kPemKey));
-}
-
-void Settings::migrateLegacyCache() {
-  const QString oldRoot = QDir(cacheRoot_).filePath(QStringLiteral("books"));
-  const QString target =
-      QDir(cacheRoot_).filePath(QStringLiteral("accounts/default/books"));
-  if (!QFileInfo::exists(oldRoot) || QFileInfo::exists(target)) {
-    return;
-  }
-  QDir().mkpath(QFileInfo(target).absolutePath());
-  QDir().rename(oldRoot, target);
 }
 
 QStringList Settings::accountIds() const {
@@ -224,7 +154,7 @@ QVariantList Settings::accounts() const {
     row.insert(QStringLiteral("trusted"),
                !accountValue(QStringLiteral("fingerprint"), id).isEmpty());
     row.insert(QStringLiteral("active"), id == active);
-    row.insert(QStringLiteral("isDefault"), id == defaultAccountId());
+    row.insert(QStringLiteral("isStartup"), id == startupAccountId());
     result.append(row);
   }
   return result;
@@ -240,22 +170,16 @@ QString Settings::activeAccountName() const {
   return name.isEmpty() ? activeAccountId() : name;
 }
 
-QString Settings::defaultAccountId() const {
-  const QStringList ids = accountIds();
-  const QString startup = settings_.value(QString::fromLatin1(kStartupAccountKey)).toString();
-  if (ids.contains(startup)) {
-    return startup;
-  }
-  const QString legacy = settings_.value(QString::fromLatin1(kDefaultAccountKey)).toString();
-  if (ids.contains(legacy)) {
-    return legacy;
-  }
-  const QString active = activeAccountId();
-  return ids.contains(active) ? active : firstAccountId();
+QString Settings::startupAccountId() const {
+  const QString id = settings_.value(QString::fromLatin1(kStartupAccountKey)).toString();
+  return accountIds().contains(id) ? id : QString();
 }
 
-QString Settings::defaultAccountName() const {
-  const QString id = defaultAccountId();
+QString Settings::startupAccountName() const {
+  const QString id = startupAccountId();
+  if (id.isEmpty()) {
+    return QStringLiteral("None");
+  }
   const QString name = accountValue(QStringLiteral("name"), id);
   return name.isEmpty() ? id : name;
 }
@@ -418,12 +342,18 @@ bool Settings::switchAccount(const QString &id) {
   return true;
 }
 
-bool Settings::setDefaultAccount(const QString &id) {
+bool Settings::setStartupAccount(const QString &id) {
   if (id.isEmpty() || !accountIds().contains(id)) {
     return false;
   }
   settings_.setValue(QString::fromLatin1(kStartupAccountKey), id);
-  settings_.setValue(QString::fromLatin1(kDefaultAccountKey), id);
+  persist();
+  emit configurationChanged();
+  return true;
+}
+
+bool Settings::clearStartupAccount() {
+  settings_.remove(QString::fromLatin1(kStartupAccountKey));
   persist();
   emit configurationChanged();
   return true;
@@ -435,28 +365,18 @@ bool Settings::removeAccount(const QString &id) {
     return false;
   }
   const QString active = activeAccountId();
-  const QString startup = defaultAccountId();
+  const QString startup = startupAccountId();
   settings_.remove(accountGroupPath(id));
-  const QStringList remaining = accountIds();
-  const QString first = remaining.isEmpty() ? QString() : remaining.first();
-
-  QString startupReplacement = first;
-  if (startup != id && remaining.contains(startup)) {
-    startupReplacement = startup;
-  } else if (active != id && remaining.contains(active)) {
-    startupReplacement = active;
+  if (startup == id) {
+    settings_.remove(QString::fromLatin1(kStartupAccountKey));
   }
-
-  QString activeReplacement = first;
-  if (active != id && remaining.contains(active)) {
-    activeReplacement = active;
-  } else if (startup != id && remaining.contains(startup)) {
-    activeReplacement = startup;
+  if (active == id) {
+    const QStringList remaining = accountIds();
+    const QString replacement = startup != id && remaining.contains(startup)
+                                    ? startup
+                                    : (remaining.isEmpty() ? QString() : remaining.first());
+    settings_.setValue(QString::fromLatin1(kActiveAccountKey), replacement);
   }
-
-  settings_.setValue(QString::fromLatin1(kStartupAccountKey), startupReplacement);
-  settings_.setValue(QString::fromLatin1(kDefaultAccountKey), startupReplacement);
-  settings_.setValue(QString::fromLatin1(kActiveAccountKey), activeReplacement);
   persist();
   emit configurationChanged();
   return true;

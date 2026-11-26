@@ -125,7 +125,6 @@ Qt writes general keys under `[%General]` and account keys under `[accounts/<id>
 
 - `general/activeAccount`
 - `general/startupAccount`
-- `general/defaultAccount` (legacy compatibility)
 - `accounts/<id>/name`
 - `accounts/<id>/url`
 - `accounts/<id>/apiKey`
@@ -133,18 +132,20 @@ Qt writes general keys under `[%General]` and account keys under `[accounts/<id>
 - `accounts/<id>/pem`
 - `reader/hideStatusBar`
 
-Legacy single-account installs are migrated to an account with id `default`, and the old `books/` cache is moved to `accounts/default/books/`. Caches written by interim builds under `accounts/<id>/books/books/<hashed-book-id>/` remain readable, but new downloads use the single-`books` layout shown above.
+Old top-level `books/` data is no longer moved automatically; copy it into the target account's `books/` directory as described in CACHE_RECOVERY.md. Caches written by interim builds under `accounts/<id>/books/books/<hashed-book-id>/` remain readable, but new downloads use the single-`books` layout shown above.
 
 ### 5.2 Active vs startup account
 
 The app distinguishes:
 
-- **Startup account**: stored as `general/startupAccount` and opened at launch.
-- **Active account**: the account currently loaded in the session.
+- **Startup account**: stored as `general/startupAccount`; when set to an existing account, it becomes the active account at launch.
+- **Active account**: stored as `general/activeAccount`; the account currently loaded in the session, used at launch only when no startup account is set.
 
-`Settings::switchAccount()` and the **Use** action change only the active account; **Edit** also opens the selected account without changing startup. `AppController::setDefaultAccount()` from the **Startup** action persists only `general/startupAccount`. `ensureAccounts()` validates the saved startup ID, falls back to the legacy key and then a valid active ID when startup is invalid, and makes the resolved startup account active at launch. The legacy `general/defaultAccount` key is read and rewritten for compatibility but is not authoritative. Deleting the startup account repoints startup to the active account when valid, otherwise to the first remaining account.
+At startup, `Settings::initializeAccounts()` creates a first account only on a fresh install, then applies a valid startup account over the stored active account. If startup has been cleared, the last active account is preserved. Legacy keys are ignored and left untouched; there is no migration or fallback cascade.
 
-The account editor shows active and startup account names. The setup form offers **Set as startup** when the active account is not already the startup account.
+`Settings::switchAccount()` and the **Use** action change only the active account; **Edit** also opens the selected account without changing startup. `AppController::setStartupAccount()` from the **Startup** action writes only `general/startupAccount`; `AppController::clearStartupAccount()` from **Clear startup** removes it. Deleting the startup account clears startup; deleting the active account selects the startup account when available, otherwise the first remaining account.
+
+The account editor shows active and startup account names. The setup form offers **Set as startup** when the active account is not already the startup account. The Accounts screen also offers **Clear startup** near **New account**.
 
 ### 5.3 Security decisions
 
@@ -321,7 +322,7 @@ The cleanup branch separates download state from reader state. Row downloads no 
 | Avoid force-pushing released tags | Used new incremental tags `v1.2.1` and `v1.2.2` instead of moving `v1.2.0`. |
 | Washed-out color on Kaleido 3 | Native reader loads RGB24 bitmaps, calls `adjustBitmapDefault()`, and refreshes through InkView; new caches store color bytes and record a color-cache flag. |
 | Startup account could not be changed reliably | Startup and active account state are now separate keys; only **Startup** writes `general/startupAccount`, while **Use** and **Edit** update only the active account. |
-| Startup account fell back alphabetically | `ensureAccounts()` now validates the persisted startup ID, falls back to the legacy key then a valid active ID when startup is invalid, and immediately persists the repaired keys. |
+| Startup account lost priority to last active | A valid `startupAccount` now becomes active at launch; **Clear startup** removes it and preserves the last active account. Legacy keys and repair cascades were removed. |
 | Incomplete cache reset progress to page 1 on download | Opening a book now restores stored manifest progress regardless of full-download state, falls back to manifest page count when the list omits it, and keeps a server-reported page from collapsing to 1. |
 | Reader navigation icons | Previous/Next are left/right arrows, Download is a bold down arrow, Series and Delete were removed from reading mode, and Exit was added. The Bar control was removed from the native reader bar. |
 | Top bar text and shortcuts | Home, Refresh, and Accounts reverted to text because the icons were not well liked; In progress/Offline/Recently added/On deck moved into a second row. |
