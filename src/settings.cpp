@@ -29,10 +29,12 @@ QString defaultCacheRoot() {
 
 }
 
-Settings::Settings(QObject *parent)
+Settings::Settings(QObject *parent) : Settings(defaultCacheRoot(), parent) {}
+
+Settings::Settings(const QString &cacheRoot, QObject *parent)
     : QObject(parent),
-      settings_(defaultCacheRoot() + QStringLiteral("/settings.ini"), QSettings::IniFormat),
-      cacheRoot_(defaultCacheRoot()) {
+      settings_(QDir(cacheRoot).filePath(QStringLiteral("settings.ini")), QSettings::IniFormat),
+      cacheRoot_(cacheRoot) {
   QDir().mkpath(cacheRoot_);
   QFile settingsFile(settings_.fileName());
   if (!settingsFile.exists() && settingsFile.open(QIODevice::WriteOnly)) {

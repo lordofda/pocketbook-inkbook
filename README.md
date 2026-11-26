@@ -70,6 +70,14 @@ QML validation:
   qml/InputField.qml qml/AccountRow.qml qml/FilterBar.qml qml/ListScroller.qml
 ```
 
+Host unit tests use desktop Qt and temporary settings directories:
+
+```bash
+cmake -S tests/host -B build-host -G Ninja
+cmake --build build-host
+ctest --test-dir build-host --output-on-failure
+```
+
 ## Project layout
 
 - `qml/main.qml` — main UI, navigation, reader chrome.
@@ -81,6 +89,7 @@ QML validation:
 - `src/native_reader.cpp` — InkView bitmap rendering and reader input.
 - `src/settings.cpp` — persisted settings.
 - `src/device.cpp` — InkView screen/font/bootstrap and system status bar control.
+- `tests/host/` — desktop Qt unit tests for portable settings/account logic.
 - `dist/komga-reader.app` — compiled sideloadable binary.
 
 ## Limitations
