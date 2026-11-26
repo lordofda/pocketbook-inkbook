@@ -85,6 +85,7 @@ QML validation:
 
 ## Limitations
 
+- THE MULTI ACCOUNT FEATURE IS GLITCHY. Switching works, but setting default account, editing and saving does not always work correctly
 - First offline scope is whole-book downloads only.
 - Large libraries download sequentially and can feel slow.
 - The `In progress` sort uses Komga's `readProgress.readDate`.
