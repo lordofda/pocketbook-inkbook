@@ -704,12 +704,21 @@ void AppController::switchAccount(const QString &id) {
   emit stateChanged();
 }
 
-void AppController::setDefaultAccount(const QString &id) {
-  if (!settings_->setDefaultAccount(id)) {
+void AppController::setStartupAccount(const QString &id) {
+  if (!settings_->setStartupAccount(id)) {
     setStatus(QStringLiteral("Could not set startup account"));
     return;
   }
-  setStatus(QStringLiteral("Startup account set to %1").arg(settings_->defaultAccountName()));
+  setStatus(QStringLiteral("Startup account set to %1").arg(settings_->startupAccountName()));
+  emit stateChanged();
+}
+
+void AppController::clearStartupAccount() {
+  if (!settings_->clearStartupAccount()) {
+    setStatus(QStringLiteral("Could not clear startup account"));
+    return;
+  }
+  setStatus(QStringLiteral("Startup account cleared"));
   emit stateChanged();
 }
 

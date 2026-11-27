@@ -6,16 +6,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 
-enable_testing()
 find_package(Qt6 REQUIRED COMPONENTS Core Network Test)
 
-qt_add_executable(komga-host-tests
+enable_testing()
+
+qt_add_executable(settings_tests
   test_settings.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/settings.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/../../src/book_store.cpp
+  ../../src/settings.h
+  ../../src/settings.cpp
+  ../../src/book_store.h
+  ../../src/book_store.cpp
 )
 
-target_include_directories(komga-host-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../src)
-target_link_libraries(komga-host-tests PRIVATE Qt6::Core Qt6::Network Qt6::Test)
+target_include_directories(settings_tests PRIVATE ../../src)
+target_link_libraries(settings_tests PRIVATE Qt6::Core Qt6::Network Qt6::Test)
 
-add_test(NAME komga-host-tests COMMAND komga-host-tests)
+add_test(NAME settings_tests COMMAND settings_tests)
