@@ -17,8 +17,9 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 - Search and A–Z title filtering on every list view, with a Done button to dismiss the on-screen keyboard.
 - Finishing a book marks it complete in Komga and offers the next book in the series when available.
 - Open series action on book rows and offline rows whose cached manifest records a series ID.
-- Whole-book offline downloads with native InkView color rendering.
+- Whole-book offline downloads with native InkView color rendering; starting another book queues it instead of interrupting the active download, and Cancel clears the queue.
 - Offline books browser: open downloaded books without a server, open their series when the ID is cached, delete local copies, and see cached size/count.
+- **Sync all** on the Offline page pushes all pending progress sequentially.
 - Progress sync:
   - Automatic debounced sync after page turns.
   - Explicit page turns push the local page to Komga, so the server cannot pull the reader back to a newer page immediately.
@@ -27,7 +28,7 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
   - The offline `SYNC` badge is a button that pushes pending progress without opening the book.
   - When opening a book, the app checks Komga's stored progress. If the server is further ahead, the local position moves to the server page; otherwise the local page is pushed.
 - Native InkView reader: left/right thirds turn pages; a center tap toggles native bars with left/right arrows, a bold down-arrow download action, Sync, Exit, and Back.
-- Top bar keeps Home, Back, Refresh, Accounts, Bar, and Exit as text; In progress, Offline, Recently added, and On deck appear in a second row on non-reader screens.
+- Top bar keeps Home, Back, Refresh, Accounts, Bar, and Exit as text; In progress, Offline, Recently added, and On deck appear in a second row on non-reader screens. The Offline page also has a Sync all action above the filter row.
 - `Bar:off` / `Bar:on` in the library top bar toggles the system status bar. The QML fallback reader's `Bar` button toggles reader chrome; the native InkView reader toggles chrome with a center tap, top-bar tap, or OK/Menu key and has no status-bar button. Default status bar state is hidden.
 
 ## Install
@@ -97,7 +98,7 @@ ctest --test-dir build-host --output-on-failure
 ## Limitations
 
 - First offline scope is whole-book downloads only.
-- Large libraries download sequentially and can feel slow.
+- Downloads run sequentially in a queue; starting another book queues it, and Cancel clears current and queued work.
 - The `In progress` sort uses Komga's `readProgress.readDate`.
 - Deleting an account removes its settings; its cached book directory is left on disk and can be removed manually if needed.
 - System status bar behavior depends on the InkView firmware API; the toggle is available in the top menu on supported devices.

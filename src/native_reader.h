@@ -23,7 +23,9 @@ class NativeReader : public QObject {
   void setWindow(QQuickWindow *window);
 
   Q_INVOKABLE void show(const QString &path, int page, int pageCount, const QString &title,
-                        bool completed, const QString &status, bool syncEnabled);
+                         bool completed, const QString &status, bool syncEnabled,
+                         bool cancelDownloadsEnabled);
+
   Q_INVOKABLE void close();
 
  signals:
@@ -56,6 +58,7 @@ class NativeReader : public QObject {
   bool completed_ = false;
   bool chromeVisible_ = false;
   bool syncEnabled_ = false;
+  bool cancelDownloadsEnabled_ = false;
   bool fullUpdateNeeded_ = false;
 
   static NativeReader *instance_;

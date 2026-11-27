@@ -47,11 +47,17 @@ AppController::AppController(Settings *settings, KomgaApi *api, BookStore *store
       settings_(settings),
       api_(api),
       store_(store),
-      downloadQueueIndex_(0),
       activeDownloadId_(0),
+      downloadQueueCompleted_(0),
+      downloadQueueFailed_(0),
       syncCheckId_(0),
       syncWriteId_(0),
       progressRetryCount_(0),
+      syncAllIndex_(0),
+      syncAllToken_(0),
+      syncAllSynced_(0),
+      syncAllFailed_(0),
+      syncAllActive_(false),
       requestEpoch_(0),
       currentPage_(1),
       pageCount_(0),
@@ -98,13 +104,19 @@ AppController::AppController(Settings *settings, KomgaApi *api, BookStore *store
   connect(api_, &KomgaApi::busyChanged, this, &AppController::onBusyChanged);
   connect(api_, &KomgaApi::downloadProgress, this,
           [this](int requestId, qint64 received, qint64 total) {
-            if (requestId == activeDownloadId_ && total > 0) {
-              const int percent = static_cast<int>(received * 100 / total);
-              setStatus(QStringLiteral("Downloading %1/%2 pages · %3%")
-                            .arg(downloadQueueIndex_ + 1)
-                            .arg(downloadQueue_.size())
-                            .arg(percent));
+            if (requestId != activeDownloadId_ || total <= 0 || downloadJobs_.isEmpty()) {
+              return;
             }
+            const DownloadJob &job = downloadJobs_.first();
+            const QString prefix = downloadJobs_.size() > 1
+                                       ? QStringLiteral("(1/%1) ").arg(downloadJobs_.size())
+                                       : QString();
+            const int percent = static_cast<int>(received * 100 / total);
+            setStatus(QStringLiteral("%1Downloading %2 · %3/%4 pages · %5%")
+                          .arg(prefix, job.title)
+                          .arg(job.pageIndex + 1)
+                          .arg(job.pages.size())
+                          .arg(percent));
           });
   connect(settings_, &Settings::configurationChanged, this, &AppController::stateChanged);
   connect(store_, &BookStore::storeChanged, this, &AppController::stateChanged);
@@ -119,18 +131,21 @@ AppController::AppController(Settings *settings, KomgaApi *api, BookStore *store
 
 void AppController::insertPending(int requestId, const QString &name, const QString &id,
                                   int page, bool manual, const QString &title,
-                                  const QString &seriesId) {
+                                  const QString &seriesId, const QString &bookId,
+                                  int syncAllToken) {
   if (requestId <= 0) {
     return;
   }
   PendingAction action;
   action.name = name;
   action.id = id;
+  action.bookId = bookId;
   action.title = title;
   action.seriesId = seriesId;
   action.page = page;
   action.manual = manual;
   action.epoch = requestEpoch_;
+  action.syncAllToken = syncAllToken;
   pending_.insert(requestId, action);
 }
 
@@ -175,11 +190,156 @@ void AppController::beginDownload(const QString &id, const QString &title,
   if (id.isEmpty()) {
     return;
   }
-  clearDownloads();
-  downloadTargetId_ = id;
-  setStatus(QStringLiteral("Fetching page list..."));
-  const int requestId = api_->fetchPages(id);
-  insertPending(requestId, QStringLiteral("pages"), id, 0, false, title, seriesId);
+  for (const DownloadJob &job : downloadJobs_) {
+    if (job.bookId == id) {
+      setStatus(QStringLiteral("Already downloading or queued · %1")
+                    .arg(job.title.isEmpty() ? job.bookId : job.title));
+      emit stateChanged();
+      return;
+    }
+  }
+  DownloadJob job;
+  job.bookId = id;
+  job.title = title.isEmpty() ? id : title;
+  job.seriesId = seriesId;
+  const bool wasIdle = downloadJobs_.isEmpty();
+  if (wasIdle) {
+    downloadQueueCompleted_ = 0;
+    downloadQueueFailed_ = 0;
+  }
+  downloadJobs_.append(job);
+  if (wasIdle) {
+    startNextDownloadJob();
+    return;
+  }
+  setStatus(QStringLiteral("Queued · %1 (position %2)")
+                .arg(job.title)
+                .arg(downloadJobs_.size()));
+  emit stateChanged();
+}
+
+void AppController::startNextDownloadJob() {
+  cancelActivePageDownload();
+  if (downloadJobs_.isEmpty()) {
+    downloadTotal_ = 0;
+    downloadedCount_ = 0;
+    emit stateChanged();
+    return;
+  }
+  DownloadJob &job = downloadJobs_.first();
+  downloadTotal_ = 0;
+  downloadedCount_ = 0;
+  job.pagesRequestId = api_->fetchPages(job.bookId);
+  if (job.pagesRequestId <= 0) {
+    finishDownloadJob(false, QStringLiteral("download could not start"));
+    return;
+  }
+  insertPending(job.pagesRequestId, QStringLiteral("pages"), job.bookId, 0, false,
+                job.title, job.seriesId, job.bookId);
+  const QString prefix = downloadJobs_.size() > 1
+                             ? QStringLiteral("(1/%1) ").arg(downloadJobs_.size())
+                             : QString();
+  setStatus(QStringLiteral("%1Fetching page list · %2...").arg(prefix, job.title));
+  emit stateChanged();
+}
+
+void AppController::finishDownloadJob(bool ok, const QString &message) {
+  if (downloadJobs_.isEmpty()) {
+    return;
+  }
+  const DownloadJob job = downloadJobs_.first();
+  cancelActivePageDownload();
+  downloadJobs_.removeFirst();
+  if (ok) {
+    ++downloadQueueCompleted_;
+  } else {
+    ++downloadQueueFailed_;
+  }
+  downloadTotal_ = 0;
+  downloadedCount_ = 0;
+
+  if (downloadJobs_.isEmpty()) {
+    if (downloadQueueCompleted_ == 1 && downloadQueueFailed_ == 0) {
+      const int requested = job.pages.size();
+      setStatus(requested > 0 ? QStringLiteral("Book downloaded · %1 pages").arg(requested)
+                              : QStringLiteral("Book downloaded"));
+    } else if (downloadQueueFailed_ == 1 && downloadQueueCompleted_ == 0 &&
+               !message.isEmpty()) {
+      setStatus(QStringLiteral("Download failed · %1").arg(message));
+    } else {
+      setStatus(QStringLiteral("Download queue finished · %1 downloaded · %2 failed")
+                    .arg(downloadQueueCompleted_)
+                    .arg(downloadQueueFailed_));
+    }
+    emit stateChanged();
+    return;
+  }
+
+  const QString failure = ok ? QString()
+                             : QStringLiteral("%1 failed · %2; ")
+                                   .arg(job.title.isEmpty() ? job.bookId : job.title, message);
+  startNextDownloadJob();
+  if (!failure.isEmpty()) {
+    setStatus(failure + status_);
+  }
+}
+
+void AppController::cancelActivePageDownload() {
+  if (activeDownloadId_ > 0) {
+    api_->cancelRequest(activeDownloadId_);
+    pending_.remove(activeDownloadId_);
+  }
+  activeDownloadId_ = 0;
+}
+
+void AppController::clearDownloadQueue() {
+  cancelActivePageDownload();
+  for (const DownloadJob &job : downloadJobs_) {
+    if (job.pagesRequestId > 0) {
+      api_->cancelRequest(job.pagesRequestId);
+      pending_.remove(job.pagesRequestId);
+    }
+  }
+  downloadJobs_.clear();
+  downloadQueueCompleted_ = 0;
+  downloadQueueFailed_ = 0;
+  downloadTotal_ = 0;
+  downloadedCount_ = 0;
+}
+
+void AppController::cancelDownloads() {
+  clearDownloadQueue();
+  setStatus(QStringLiteral("Downloads cancelled"));
+  emit stateChanged();
+}
+
+void AppController::removeDownloadJobsForBook(const QString &bookId) {
+  if (bookId.isEmpty() || downloadJobs_.isEmpty()) {
+    return;
+  }
+  bool removedActive = false;
+  for (int i = downloadJobs_.size() - 1; i >= 0; --i) {
+    if (downloadJobs_.at(i).bookId != bookId) {
+      continue;
+    }
+    if (i == 0) {
+      removedActive = true;
+      cancelActivePageDownload();
+      if (downloadJobs_.at(i).pagesRequestId > 0) {
+        api_->cancelRequest(downloadJobs_.at(i).pagesRequestId);
+        pending_.remove(downloadJobs_.at(i).pagesRequestId);
+      }
+    } else if (downloadJobs_.at(i).pagesRequestId > 0) {
+      api_->cancelRequest(downloadJobs_.at(i).pagesRequestId);
+      pending_.remove(downloadJobs_.at(i).pagesRequestId);
+    }
+    downloadJobs_.removeAt(i);
+  }
+  if (removedActive && !downloadJobs_.isEmpty()) {
+    startNextDownloadJob();
+  } else if (downloadJobs_.isEmpty()) {
+    clearDownloadQueue();
+  }
   emit stateChanged();
 }
 
@@ -326,11 +486,35 @@ QString AppController::nextBookTitle() const {
   return nextBookTitle_;
 }
 
+int AppController::downloadQueueCount() const {
+  return downloadJobs_.size();
+}
+
+bool AppController::downloadsActive() const {
+  return !downloadJobs_.isEmpty();
+}
+
+int AppController::syncPendingCount() const {
+  int count = 0;
+  for (const QString &id : store_->downloadedBookIds()) {
+    if (store_->hasPendingProgress(id)) {
+      ++count;
+    }
+  }
+  return count;
+}
+
+bool AppController::syncAllActive() const {
+  return syncAllActive_;
+}
+
 void AppController::configure(const QString &url, const QString &key, const QString &name) {
   if (!settings_->saveConnection(url, key, name)) {
     setStatus(QStringLiteral("Enter a valid HTTPS URL and API key"));
     return;
   }
+  clearDownloadQueue();
+  resetSyncAll();
   ++requestEpoch_;
   pending_.clear();
   lastLibraries_ = QJsonArray();
@@ -795,6 +979,8 @@ void AppController::deleteOfflineBook(const QString &id) {
   if (progressSyncBookId_ == id) {
     progressSyncBookId_.clear();
   }
+  removeSyncAllBook(id);
+  removeDownloadJobsForBook(id);
   refreshBooksModel();
   populateOfflineBooks();
   setStatus(QStringLiteral("Offline copy removed"));
@@ -821,6 +1007,135 @@ void AppController::syncBookId(const QString &id) {
     return;
   }
   beginProgressSync(true, id, true);
+}
+
+void AppController::syncAllPendingProgress() {
+  if (syncAllActive_) {
+    setStatus(QStringLiteral("Sync all already in progress"));
+    emit stateChanged();
+    return;
+  }
+  if ((syncCheckId_ > 0 && pending_.contains(syncCheckId_)) ||
+      (syncWriteId_ > 0 && pending_.contains(syncWriteId_))) {
+    setStatus(QStringLiteral("Sync already in progress"));
+    emit stateChanged();
+    return;
+  }
+  if (!settings_->configured() ||
+      (settings_->serverUrl().startsWith(QStringLiteral("https"), Qt::CaseInsensitive) &&
+       !settings_->trusted())) {
+    setStatus(QStringLiteral("Komga is not configured for sync"));
+    emit stateChanged();
+    return;
+  }
+
+  QStringList ids;
+  for (const QString &id : store_->downloadedBookIds()) {
+    if (store_->hasPendingProgress(id)) {
+      ids.append(id);
+    }
+  }
+  if (ids.isEmpty()) {
+    populateOfflineBooks();
+    return;
+  }
+
+  syncTimer_.stop();
+  ++syncAllToken_;
+  syncAllQueue_ = ids;
+  syncAllIndex_ = 0;
+  syncAllSynced_ = 0;
+  syncAllFailed_ = 0;
+  syncAllActive_ = true;
+  startNextSyncAllBook();
+}
+
+void AppController::startNextSyncAllBook() {
+  if (!syncAllActive_) {
+    return;
+  }
+  if (syncAllIndex_ >= syncAllQueue_.size()) {
+    const int synced = syncAllSynced_;
+    const int failed = syncAllFailed_;
+    resetSyncAll();
+    populateOfflineBooks();
+    setStatus(QStringLiteral("Sync all finished · %1 synced · %2 failed").arg(synced).arg(failed));
+    if (!offlineBook_ && !currentBookId_.isEmpty() &&
+        store_->hasPendingProgress(currentBookId_)) {
+      scheduleProgressSync();
+    }
+    emit stateChanged();
+    return;
+  }
+  const QString bookId = syncAllQueue_.at(syncAllIndex_);
+  if (!store_->hasPendingProgress(bookId)) {
+    ++syncAllIndex_;
+    startNextSyncAllBook();
+    return;
+  }
+  setStatus(QStringLiteral("Syncing %1/%2...")
+                .arg(syncAllIndex_ + 1)
+                .arg(syncAllQueue_.size()));
+  beginProgressSync(false, bookId, true, syncAllToken_, true);
+}
+
+void AppController::finishSyncAllBook(bool ok) {
+  if (!syncAllActive_) {
+    return;
+  }
+  if (ok) {
+    ++syncAllSynced_;
+  } else {
+    ++syncAllFailed_;
+  }
+  const QString bookId = syncAllIndex_ < syncAllQueue_.size()
+                             ? syncAllQueue_.at(syncAllIndex_)
+                             : QString();
+  if (!bookId.isEmpty()) {
+    offlineModel_.markSyncPending(bookId, store_->hasPendingProgress(bookId));
+  }
+  progressSyncBookId_.clear();
+  ++syncAllIndex_;
+  startNextSyncAllBook();
+}
+
+void AppController::resetSyncAll() {
+  syncAllQueue_.clear();
+  syncAllIndex_ = 0;
+  progressSyncBookId_.clear();
+  ++syncAllToken_;
+  syncAllSynced_ = 0;
+  syncAllFailed_ = 0;
+  syncAllActive_ = false;
+}
+
+void AppController::removeSyncAllBook(const QString &bookId) {
+  if (!syncAllActive_ || bookId.isEmpty() || !syncAllQueue_.contains(bookId)) {
+    return;
+  }
+  const bool removedActive = syncAllIndex_ < syncAllQueue_.size() &&
+                             syncAllQueue_.at(syncAllIndex_) == bookId;
+  ++syncAllToken_;
+  if (syncCheckId_ > 0) {
+    api_->cancelRequest(syncCheckId_);
+    pending_.remove(syncCheckId_);
+    syncCheckId_ = 0;
+  }
+  if (syncWriteId_ > 0) {
+    api_->cancelRequest(syncWriteId_);
+    pending_.remove(syncWriteId_);
+    syncWriteId_ = 0;
+  }
+  const int currentIndex = qMin(syncAllIndex_, syncAllQueue_.size() - 1);
+  if (!progressSyncBookId_.isEmpty() && syncAllQueue_.at(currentIndex) != bookId) {
+    progressSyncBookId_.clear();
+  }
+  syncAllQueue_.removeAll(bookId);
+  if (syncAllIndex_ >= syncAllQueue_.size()) {
+    resetSyncAll();
+  } else if (removedActive) {
+    startNextSyncAllBook();
+  }
 }
 
 void AppController::toggleStatusBar() {
@@ -1027,8 +1342,11 @@ void AppController::onBook(const QJsonObject &book, int requestId) {
       action.id.isEmpty()) {
     return;
   }
-
-  const QString bookId = action.id;
+  if (syncAllActive_ && action.syncAllToken != syncAllToken_) {
+    return;
+  }
+  const bool bulk = syncAllActive_ && action.syncAllToken == syncAllToken_;
+  const QString bookId = !action.bookId.isEmpty() ? action.bookId : action.id;
   const bool inReader = view_ == QStringLiteral("reader") && bookId == currentBookId_;
   const QJsonObject progress = book.value(QStringLiteral("readProgress")).toObject();
   const QJsonObject media = book.value(QStringLiteral("media")).toObject();
@@ -1057,6 +1375,10 @@ void AppController::onBook(const QJsonObject &book, int requestId) {
       colorPage_ = !pagePath_.isEmpty() && store_->isColorCache(bookId);
       bookCompleted_ = total > 0 && currentPage_ >= total;
     }
+    if (bulk) {
+      finishSyncAllBook(true);
+      return;
+    }
     if (view_ == QStringLiteral("offline")) {
       populateOfflineBooks();
     }
@@ -1069,16 +1391,33 @@ void AppController::onBook(const QJsonObject &book, int requestId) {
   if (localPage > serverPage) {
     const bool completed = total > 0 && localPage >= total;
     const int updateId = api_->updateProgress(bookId, localPage, completed);
-    insertPending(updateId, QStringLiteral("sync"), bookId, localPage, action.manual);
+    if (updateId <= 0) {
+      if (bulk) {
+        finishSyncAllBook(false);
+      } else {
+        setStatus(QStringLiteral("Progress sync failed"));
+      }
+      emit stateChanged();
+      return;
+    }
+    insertPending(updateId, QStringLiteral("sync"), bookId, localPage, action.manual,
+                  QString(), QString(), bookId, action.syncAllToken);
     syncWriteId_ = updateId;
     progressSyncBookId_ = bookId;
-    setStatus(QStringLiteral("Pushing local progress to server..."));
+    setStatus(bulk ? QStringLiteral("Syncing %1/%2 · pushing progress")
+                         .arg(syncAllIndex_ + 1)
+                         .arg(syncAllQueue_.size())
+                   : QStringLiteral("Pushing local progress to server..."));
     emit stateChanged();
     return;
   }
 
   store_->clearPending(bookId);
   progressSyncBookId_.clear();
+  if (bulk) {
+    finishSyncAllBook(true);
+    return;
+  }
   if (view_ == QStringLiteral("offline")) {
     populateOfflineBooks();
   }
@@ -1088,21 +1427,23 @@ void AppController::onBook(const QJsonObject &book, int requestId) {
 
 void AppController::onPages(const QString &bookId, const QJsonArray &items, int requestId) {
   const PendingAction action = pending_.take(requestId);
-  if (!isCurrent(action) || action.name != QStringLiteral("pages") ||
-      action.id != downloadTargetId_ || bookId != action.id) {
+  if (!isCurrent(action) || action.name != QStringLiteral("pages") || bookId != action.bookId ||
+      downloadJobs_.isEmpty() || downloadJobs_.first().bookId != bookId ||
+      downloadJobs_.first().pagesRequestId != requestId) {
     return;
   }
+  DownloadJob &job = downloadJobs_.first();
+  job.pagesRequestId = 0;
   if (items.isEmpty()) {
-    setStatus(QStringLiteral("No pages found for this book"));
+    finishDownloadJob(false, QStringLiteral("no pages found"));
     emit stateChanged();
     return;
   }
-  store_->createManifest(bookId, action.title.isEmpty() ? action.id : action.title, items,
+  store_->createManifest(bookId, action.title.isEmpty() ? action.bookId : action.title, items,
                          action.seriesId);
-  downloadBookId_ = bookId;
-  downloadQueue_ = pagesFromArray(items);
-  downloadQueueIndex_ = 0;
-  downloadTotal_ = downloadQueue_.size();
+  job.pages = pagesFromArray(items);
+  job.pageIndex = 0;
+  downloadTotal_ = job.pages.size();
   downloadedCount_ = store_->downloadedCount(bookId);
   startNextDownload();
   emit stateChanged();
@@ -1116,8 +1457,16 @@ void AppController::onProgressUpdated(const QString &bookId, bool ok, int reques
   if (!isCurrent(action) || action.name != QStringLiteral("sync") || action.id != bookId) {
     return;
   }
+  if (syncAllActive_ && action.syncAllToken != syncAllToken_) {
+    return;
+  }
+  const bool bulk = syncAllActive_ && action.syncAllToken == syncAllToken_;
   const int localPage = store_->localPage(bookId);
   if (!ok) {
+    if (bulk) {
+      finishSyncAllBook(false);
+      return;
+    }
     setStatus(QStringLiteral("Progress sync failed"));
     retryProgressSync();
     emit stateChanged();
@@ -1125,6 +1474,10 @@ void AppController::onProgressUpdated(const QString &bookId, bool ok, int reques
   }
   progressRetryCount_ = 0;
   if (localPage > action.page) {
+    if (bulk) {
+      beginProgressSync(false, bookId, true, action.syncAllToken, true);
+      return;
+    }
     scheduleProgressSync();
     if (bookId == currentBookId_) {
       setStatus(QStringLiteral("Syncing newer page..."));
@@ -1134,6 +1487,10 @@ void AppController::onProgressUpdated(const QString &bookId, bool ok, int reques
   }
   store_->clearPending(bookId);
   progressSyncBookId_.clear();
+  if (bulk) {
+    finishSyncAllBook(true);
+    return;
+  }
   if (view_ == QStringLiteral("offline")) {
     populateOfflineBooks();
   }
@@ -1172,12 +1529,15 @@ void AppController::onCertificate(const QString &fingerprint, const QString &pem
 void AppController::onDownloadFinished(bool ok, const QString &message, int requestId) {
   const PendingAction action = pending_.take(requestId);
   if (!isCurrent(action) || requestId != activeDownloadId_ ||
-      action.name != QStringLiteral("download")) {
+      action.name != QStringLiteral("download") || downloadJobs_.isEmpty() ||
+      downloadJobs_.first().bookId != action.bookId) {
     return;
   }
+  activeDownloadId_ = 0;
   if (!ok) {
-    clearDownloads();
-    setStatus(QStringLiteral("Download failed: %1").arg(message));
+    QFile raw(action.id);
+    raw.remove();
+    finishDownloadJob(false, message);
     emit stateChanged();
     return;
   }
@@ -1192,23 +1552,23 @@ void AppController::onDownloadFinished(bool ok, const QString &message, int requ
   raw.remove();
   const int page = action.page;
   BookManifest manifest;
-  store_->loadManifest(downloadBookId_, &manifest);
+  store_->loadManifest(action.bookId, &manifest);
   const QString mediaType =
       manifest.mediaTypes.value(page, QStringLiteral("image/jpeg"));
-  if (data.isEmpty() || !store_->storePage(downloadBookId_, page, mediaType, data)) {
-    clearDownloads();
-    setStatus(QStringLiteral("Download failed: cannot store page %1").arg(page));
+  if (data.isEmpty() || !store_->storePage(action.bookId, page, mediaType, data)) {
+    finishDownloadJob(false, QStringLiteral("cannot store page %1").arg(page));
     emit stateChanged();
     return;
   }
 
-  ++downloadQueueIndex_;
+  DownloadJob &job = downloadJobs_.first();
+  ++job.pageIndex;
   ++downloadedCount_;
-  if (view_ == QStringLiteral("reader") && currentBookId_ == downloadBookId_) {
+  if (view_ == QStringLiteral("reader") && currentBookId_ == action.bookId) {
     updatePage(currentPage_);
   }
-  bookModel_.markDownloaded(downloadBookId_, true);
-  onDeckModel_.markDownloaded(downloadBookId_, true);
+  bookModel_.markDownloaded(action.bookId, true);
+  onDeckModel_.markDownloaded(action.bookId, true);
   startNextDownload();
   emit stateChanged();
 }
@@ -1224,7 +1584,16 @@ void AppController::onRequestFailed(const QString &message, int requestId) {
   if (!isCurrent(action)) {
     return;
   }
-  if (action.name == QStringLiteral("syncCheck") || action.name == QStringLiteral("sync")) {
+  const bool syncAction = action.name == QStringLiteral("syncCheck") ||
+                          action.name == QStringLiteral("sync");
+  if (syncAction && syncAllActive_ && action.syncAllToken != syncAllToken_) {
+    return;
+  }
+  if (syncAction) {
+    if (syncAllActive_) {
+      finishSyncAllBook(false);
+      return;
+    }
     if (view_ == QStringLiteral("offline")) {
       populateOfflineBooks();
     }
@@ -1234,7 +1603,22 @@ void AppController::onRequestFailed(const QString &message, int requestId) {
     return;
   }
   if (action.name == QStringLiteral("download")) {
-    clearDownloads();
+    if (requestId == activeDownloadId_) {
+      activeDownloadId_ = 0;
+    }
+    QFile raw(action.id);
+    raw.remove();
+    finishDownloadJob(false, message);
+    emit stateChanged();
+    return;
+  }
+  if (action.name == QStringLiteral("pages")) {
+    if (!downloadJobs_.isEmpty() && downloadJobs_.first().pagesRequestId == requestId) {
+      downloadJobs_.first().pagesRequestId = 0;
+    }
+    finishDownloadJob(false, message);
+    emit stateChanged();
+    return;
   }
   setStatus(QStringLiteral("%1: %2").arg(action.name.isEmpty() ? QStringLiteral("Request failed")
                                                                   : action.name, message));
@@ -1253,6 +1637,9 @@ void AppController::onBusyChanged(bool busy) {
 }
 
 void AppController::syncPendingProgress() {
+  if (syncAllActive_) {
+    return;
+  }
   const QString bookId = view_ == QStringLiteral("reader") && !currentBookId_.isEmpty()
                              ? currentBookId_
                              : progressSyncBookId_;
@@ -1266,13 +1653,16 @@ void AppController::syncPendingProgress() {
 }
 
 void AppController::beginProgressSync(bool manual, const QString &bookIdArgument,
-                                      bool allowOffline) {
+                                      bool allowOffline, int syncAllToken, bool bulk) {
   const QString bookId = !bookIdArgument.isEmpty()
                              ? bookIdArgument
                              : (!currentBookId_.isEmpty() ? currentBookId_ : progressSyncBookId_);
   if (bookId.isEmpty()) {
-    if (manual) {
+    if (bulk) {
+      finishSyncAllBook(false);
+    } else if (manual) {
       setStatus(QStringLiteral("Open a book before syncing progress"));
+      emit stateChanged();
     }
     return;
   }
@@ -1282,24 +1672,41 @@ void AppController::beginProgressSync(bool manual, const QString &bookIdArgument
   if (!settings_->configured() ||
       (settings_->serverUrl().startsWith(QStringLiteral("https"), Qt::CaseInsensitive) &&
        !settings_->trusted())) {
-    if (manual) {
+    if (bulk) {
+      finishSyncAllBook(false);
+    } else if (manual) {
       setStatus(QStringLiteral("Komga is not configured for sync"));
+      emit stateChanged();
     }
     return;
   }
-  if ((syncCheckId_ > 0 && pending_.contains(syncCheckId_)) ||
-      (syncWriteId_ > 0 && pending_.contains(syncWriteId_))) {
+  if (!bulk && (syncCheckId_ > 0 && pending_.contains(syncCheckId_) ||
+                syncWriteId_ > 0 && pending_.contains(syncWriteId_))) {
     if (manual) {
       setStatus(QStringLiteral("Sync already in progress"));
+      emit stateChanged();
     }
     return;
   }
 
   const int requestId = api_->fetchBook(bookId);
+  if (requestId <= 0) {
+    if (bulk) {
+      finishSyncAllBook(false);
+    } else if (manual) {
+      setStatus(QStringLiteral("Progress sync failed"));
+      emit stateChanged();
+    }
+    return;
+  }
   syncCheckId_ = requestId;
   progressSyncBookId_ = bookId;
-  insertPending(requestId, QStringLiteral("syncCheck"), bookId, store_->localPage(bookId), manual);
-  setStatus(QStringLiteral("Checking server progress..."));
+  insertPending(requestId, QStringLiteral("syncCheck"), bookId, store_->localPage(bookId), manual,
+                QString(), QString(), bookId, syncAllToken);
+  setStatus(bulk ? QStringLiteral("Syncing %1/%2 · checking server progress")
+                       .arg(syncAllIndex_ + 1)
+                       .arg(syncAllQueue_.size())
+                 : QStringLiteral("Checking server progress..."));
   emit stateChanged();
 }
 
@@ -1323,7 +1730,8 @@ void AppController::resetForAccount(bool stayInSetup) {
   syncTimer_.stop();
   filterTimer_.stop();
   filterPrefix_ = false;
-  clearDownloads();
+  clearDownloadQueue();
+  resetSyncAll();
   ++requestEpoch_;
   pending_.clear();
   lastLibraries_ = QJsonArray();
@@ -1744,51 +2152,43 @@ void AppController::retryProgressSync() {
 }
 
 void AppController::startNextDownload() {
-  if (downloadQueueIndex_ >= downloadQueue_.size()) {
-    activeDownloadId_ = 0;
-    const int requested = downloadQueue_.size();
-    const int stored = store_->downloadedCount(downloadBookId_);
-    setStatus(stored >= requested
-                  ? QStringLiteral("Book downloaded · %1 pages").arg(requested)
-                  : QStringLiteral("Book download incomplete · %1 of %2 pages stored")
-                        .arg(stored)
-                        .arg(requested));
-    emit stateChanged();
+  if (downloadJobs_.isEmpty()) {
+    return;
+  }
+  DownloadJob &job = downloadJobs_.first();
+  if (job.pageIndex >= job.pages.size()) {
+    const int requested = job.pages.size();
+    const int stored = store_->downloadedCount(job.bookId);
+    finishDownloadJob(stored >= requested,
+                      stored >= requested
+                          ? QString()
+                          : QStringLiteral("%1 of %2 pages stored").arg(stored).arg(requested));
     return;
   }
 
-  const int page = downloadQueue_.at(downloadQueueIndex_);
-  const QString finalPath = store_->pagePath(downloadBookId_, page);
+  const int page = job.pages.at(job.pageIndex);
+  const QString finalPath = store_->pagePath(job.bookId, page);
   if (finalPath.isEmpty()) {
-    ++downloadQueueIndex_;
+    ++job.pageIndex;
     startNextDownload();
     return;
   }
   const QString rawPath = finalPath + QStringLiteral(".raw");
-  activeDownloadId_ = api_->downloadPage(downloadBookId_, page, rawPath);
+  activeDownloadId_ = api_->downloadPage(job.bookId, page, rawPath);
   if (activeDownloadId_ <= 0) {
-    clearDownloads();
-    setStatus(QStringLiteral("Download failed for page %1").arg(page));
-    emit stateChanged();
+    finishDownloadJob(false, QStringLiteral("download failed for page %1").arg(page));
     return;
   }
-  insertPending(activeDownloadId_, QStringLiteral("download"), rawPath, page);
-  setStatus(QStringLiteral("Downloading %1/%2 pages")
-                .arg(downloadQueueIndex_ + 1)
-                .arg(downloadQueue_.size()));
+  insertPending(activeDownloadId_, QStringLiteral("download"), rawPath, page, false,
+                job.title, job.seriesId, job.bookId);
+  const QString prefix = downloadJobs_.size() > 1
+                             ? QStringLiteral("(1/%1) ").arg(downloadJobs_.size())
+                             : QString();
+  setStatus(QStringLiteral("%1Downloading %2 · %3/%4 pages")
+                .arg(prefix, job.title)
+                .arg(job.pageIndex + 1)
+                .arg(job.pages.size()));
   emit stateChanged();
-}
-
-void AppController::clearDownloads() {
-  if (activeDownloadId_ > 0) {
-    api_->cancelRequest(activeDownloadId_);
-    pending_.remove(activeDownloadId_);
-  }
-  activeDownloadId_ = 0;
-  downloadQueue_.clear();
-  downloadQueueIndex_ = 0;
-  downloadTargetId_.clear();
-  downloadBookId_.clear();
 }
 
 QVector<int> AppController::pagesFromArray(const QJsonArray &items) const {

@@ -82,6 +82,34 @@ void ListModel::markDownloaded(const QString &id, bool downloaded) {
   }
 }
 
+void ListModel::markSyncPending(const QString &id, bool pending) {
+  const QString suffix = QStringLiteral(" · sync pending");
+  bool changed = false;
+  for (ListItem &item : items_) {
+    if (item.id != id) {
+      continue;
+    }
+    item.badge = pending ? QStringLiteral("SYNC") : QStringLiteral("OFFLINE");
+    if (pending && !item.meta.endsWith(suffix)) {
+      item.meta.append(suffix);
+    } else if (!pending && item.meta.endsWith(suffix)) {
+      item.meta.chop(suffix.size());
+    }
+    changed = true;
+  }
+  if (!changed) {
+    return;
+  }
+  for (int row = 0; row < visible_.size(); ++row) {
+    const int itemIndex = visible_.at(row);
+    if (items_.at(itemIndex).id != id) {
+      continue;
+    }
+    const QModelIndex modelIndex = index(row);
+    emit dataChanged(modelIndex, modelIndex, {MetaRole, BadgeRole});
+  }
+}
+
 void ListModel::clear() {
   setItems({});
 }

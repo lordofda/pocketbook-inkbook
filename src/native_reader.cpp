@@ -121,7 +121,8 @@ void NativeReader::activate() {
 }
 
 void NativeReader::show(const QString &path, int page, int pageCount, const QString &title,
-                        bool completed, const QString &status, bool syncEnabled) {
+                        bool completed, const QString &status, bool syncEnabled,
+                        bool cancelDownloadsEnabled) {
   QString localPath = path;
   if (localPath.startsWith(QStringLiteral("file://"))) {
     const QUrl url(localPath);
@@ -137,7 +138,8 @@ void NativeReader::show(const QString &path, int page, int pageCount, const QStr
     activate();
   }
   if (path_ == localPath && page_ == page && pageCount_ == pageCount && title_ == title &&
-      completed_ == completed && status_ == status && syncEnabled_ == syncEnabled) {
+      completed_ == completed && status_ == status && syncEnabled_ == syncEnabled &&
+      cancelDownloadsEnabled_ == cancelDownloadsEnabled) {
     return;
   }
   path_ = localPath;
@@ -147,6 +149,7 @@ void NativeReader::show(const QString &path, int page, int pageCount, const QStr
   completed_ = completed;
   status_ = status;
   syncEnabled_ = syncEnabled;
+  cancelDownloadsEnabled_ = cancelDownloadsEnabled;
   drawTimer_.start();
 }
 
@@ -357,10 +360,14 @@ void NativeReader::drawChrome() {
     if (index <= 1) {
       drawNavigationIcon(index, left + 4, barTop + 6, right - left - 8,
                          kButtonBarHeight - 12);
-    } else if (index == 2) {
+    } else if (index == 2 && !cancelDownloadsEnabled_) {
       drawDownloadIcon(left + 4, barTop + 6, right - left - 8, kButtonBarHeight - 12);
     } else {
-      const QByteArray label(index == 3 && !syncEnabled_ ? "Sync off" : buttonLabel(index));
+      const char *labelText = index == 2 ? "Cancel" : buttonLabel(index);
+      if (index == 3 && !syncEnabled_) {
+        labelText = "Sync off";
+      }
+      const QByteArray label(labelText);
       DrawTextRect(left + 8, barTop + 10, right - left - 16, kButtonBarHeight - 20,
                    label.constData(), ALIGN_CENTER | VALIGN_MIDDLE);
     }

@@ -16,6 +16,8 @@ qt_add_executable(settings_tests
   ../../src/settings.cpp
   ../../src/book_store.h
   ../../src/book_store.cpp
+  ../../src/models.h
+  ../../src/models.cpp
 )
 
 target_include_directories(settings_tests PRIVATE ../../src)
