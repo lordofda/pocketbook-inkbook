@@ -5,6 +5,7 @@
 #include <QTemporaryDir>
 
 #include "book_store.h"
+#include "models.h"
 #include "settings.h"
 
 namespace {
@@ -40,6 +41,7 @@ class SettingsTest : public QObject {
   void deletingActiveUsesStartup();
   void lastAccountCannotBeRemoved();
   void seriesIdRoundTrip();
+  void markSyncPendingUpdatesOfflineBadge();
   void normalizeUrl_data();
   void normalizeUrl();
   void normalizeFingerprint_data();
@@ -162,6 +164,28 @@ void SettingsTest::seriesIdRoundTrip() {
   QVERIFY(store.loadManifest(bookId, &manifest));
   QCOMPARE(manifest.seriesId, seriesId);
   QVERIFY(manifest.pending);
+}
+
+void SettingsTest::markSyncPendingUpdatesOfflineBadge() {
+  ListModel model;
+  QVector<ListItem> items;
+  ListItem item;
+  item.id = QStringLiteral("book-1");
+  item.title = QStringLiteral("Book");
+  item.badge = QStringLiteral("OFFLINE");
+  item.meta = QStringLiteral("5 of 5 pages cached");
+  items.append(item);
+  model.setItems(items);
+
+  model.markSyncPending(item.id, true);
+  QCOMPARE(model.data(model.index(0), ListModel::BadgeRole).toString(), QStringLiteral("SYNC"));
+  QVERIFY(model.data(model.index(0), ListModel::MetaRole)
+              .toString()
+              .endsWith(QStringLiteral(" · sync pending")));
+
+  model.markSyncPending(item.id, false);
+  QCOMPARE(model.data(model.index(0), ListModel::BadgeRole).toString(), QStringLiteral("OFFLINE"));
+  QCOMPARE(model.data(model.index(0), ListModel::MetaRole).toString(), item.meta);
 }
 
 void SettingsTest::normalizeUrl_data() {

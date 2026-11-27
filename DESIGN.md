@@ -176,21 +176,21 @@ The status line shows `Working · <status>` while busy and `<status>` otherwise.
 | In progress | Books ordered by `readProgress.readDate`, descending. |
 | Recent | Recently added series from `/api/v1/series/new`. |
 | On deck | On-deck books from `/api/v1/books/ondeck`. |
-| Offline | Downloaded books with Sync, Open series (when cached), Delete, and cached-size summary. |
+| Offline | Downloaded books with Sync, Open series (when cached), Delete, cached-size summary, and a Sync all action above the filter row. |
 | Reader | InkView-rendered page, native tap zones/bars, mirrored QML fallback controls, completion banner. |
 
 ### 6.2.1 Top bar and reader chrome
 
-The global top bar keeps Home, Back, Refresh, Accounts, Bar, and Exit as text. Library shortcuts for In progress, Offline, Recently added, and On deck live in a second row that is visible on every non-reader screen; the reader fallback uses the compact single-row header.
+The global top bar keeps Home, Back, Refresh, Accounts, Bar, and Exit as text. Library shortcuts for In progress, Offline, Recently added, and On deck live in a second row that is visible on every non-reader screen; the reader fallback uses the compact single-row header. The Offline page adds a Sync all action between the header and the filter row.
 
-In `v1.2.3`, top-bar `Bar:off` / `Bar:on` toggled the InkView system status bar; reader chrome was toggled by tapping the middle third. The native reader bottom bar has no Bar control; status-bar changes are made from the QML/library top bar before entering the native reader. Reader chrome remains toggled by the center third, top-bar tap, or OK/Menu key. The QML fallback bottom bar keeps left/right arrows, bold down-arrow Download, Sync, Bar, Exit, and Back; its `Bar` toggles reader chrome because the fallback has no center-tap chrome toggle. Series and Delete were removed from reading mode but remain available outside it.
+In `v1.2.3`, top-bar `Bar:off` / `Bar:on` toggled the InkView system status bar; reader chrome was toggled by tapping the middle third. The native reader bottom bar has no Bar control; status-bar changes are made from the QML/library top bar before entering the native reader. Reader chrome remains toggled by the center third, top-bar tap, or OK/Menu key. The native Download slot and the QML fallback down-arrow become Cancel while a download queue is active. The QML fallback bottom bar keeps left/right arrows, bold down-arrow Download, Sync, Bar, Exit, and Back; its `Bar` toggles reader chrome because the fallback has no center-tap chrome toggle. Series and Delete were removed from reading mode but remain available outside it.
 
 ### 6.3 List rows
 
 `ListRow.qml` exposes optional actions:
 
 - **Open series** on book rows, including in-progress, on-deck, and offline rows with a cached series ID.
-- **Download** on non-downloaded book rows.
+- **Download** on non-downloaded book rows; a new press queues the book if another download is active.
 - **Delete** on offline rows.
 - **SYNC** on offline rows with pending progress; tapping the badge syncs that book without opening it.
 
@@ -284,6 +284,7 @@ Before pushing local progress, the app fetches the book from Komga and re-reads 
 - Completion pushes `page` and `completed:true`.
 - Automatic sync runs for online books from the reader; leaving the reader starts an immediate sync for pending progress and does not cancel an in-flight check or write.
 - Manual sync works from the reader, including offline-opened copies, and from the offline `SYNC` badge.
+- Sync all on the Offline page snapshots books with pending progress and reconciles them one at a time; failures keep their badge and are reported in the final summary.
 - Failed writes retry with bounded backoff even after leaving the reader; overlapping sync checks are ignored.
 
 Progress writes are local, then debounced to the server. This protects against overwriting newer server progress after offline reading.
@@ -296,9 +297,10 @@ The cleanup branch separates download state from reader state. Row downloads no 
 
 ## 8. Offline storage design
 
-- Downloads are whole-book only.
+- Downloads are whole-book only and queued per book; the active book's pages download sequentially.
 - `createManifest()` writes page numbers, media types, and the cached series ID.
 - Pages are downloaded sequentially into a `.raw` temporary file, then stored unmodified in the per-account book folder.
+- Starting another download appends a job; Cancel clears the active page request, pending page-list requests, and queued jobs.
 - Manifest records include a color-cache flag; grayscale caches from older builds prompt for a fresh download.
 - `BookStore` tracks local page, pending progress, downloaded count, cached size, and color-cache mode.
 - Offline books can be opened, synced manually, and deleted without a server connection; Open series appears when the cached manifest has a series ID.
@@ -343,6 +345,8 @@ To preserve scroll position during downloads, `ListModel::markDownloaded(id, dow
 2. Updates `downloaded` and the `OFFLINE` badge in place.
 3. Emits `dataChanged()` for `DownloadedRole` and `BadgeRole`.
 4. Leaves `visible_` unchanged because filters do not depend on download state.
+
+`ListModel::markSyncPending(id, pending)` uses the same in-place approach for the Offline `SYNC` badge and `sync pending` meta suffix while Sync all advances through books.
 
 This avoids disruptive model resets while still refreshing row badges.
 
@@ -405,7 +409,7 @@ Releases:
 
 - API keys remain plaintext on the device by design.
 - Deleting an account leaves its cache directory on disk.
-- Downloads are whole-book only and sequential.
+- Downloads are whole-book only and sequential within a queued job.
 - The custom scrollbar approximates position rather than using platform-native Controls.
 - Large libraries still depend on network speed and server response time.
 - Status bar behavior depends on InkView firmware support.
@@ -433,6 +437,8 @@ Device acceptance checks:
 - Numeric series ordering.
 - Open series and Open next.
 - Whole-book download and offline read.
+- Queue two downloads, verify the first finishes before the second, then cancel mid-queue.
+- Sync all with several pending books, including one failure.
 - Scrollbar and Up/Down behavior.
 - Download does not reset scroll position.
 - Download does not create reading progress.

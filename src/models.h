@@ -50,6 +50,7 @@ class ListModel : public QAbstractListModel {
 
   void setItems(const QVector<ListItem> &items);
   void markDownloaded(const QString &id, bool downloaded);
+  void markSyncPending(const QString &id, bool pending);
   void clear();
   QString filter() const;
    void setFilter(const QString &filter);

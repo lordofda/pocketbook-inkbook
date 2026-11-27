@@ -232,11 +232,23 @@ Window {
             anchors.left: parent.left
             anchors.leftMargin: 24
             anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - 48
+            width: controller.downloadsActive ? parent.width - 180 : parent.width - 48
             text: controller.busy ? "Working · " + controller.status : controller.status
             font.pixelSize: 22
             color: "#222222"
             elide: Text.ElideRight
+        }
+
+        ActionButton {
+            anchors.right: parent.right
+            anchors.rightMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
+            width: 110
+            height: 52
+            text: "Cancel"
+            active: controller.downloadsActive
+            visible: controller.downloadsActive
+            onClicked: controller.cancelDownloads()
         }
     }
 
@@ -560,9 +572,35 @@ Window {
             anchors.margins: 24
             visible: controller.view === "libraries" || controller.view === "series" || controller.view === "books" || controller.view === "inProgress" || controller.view === "offline" || controller.view === "recent" || controller.view === "onDeck"
 
+            Item {
+                id: offlineActions
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: controller.view === "offline" ? 60 : 0
+                visible: controller.view === "offline"
+
+                ActionButton {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    width: 190
+                    height: 56
+                    text: controller.syncAllActive
+                          ? "Syncing..."
+                          : "Sync all (" + controller.syncPendingCount + ")"
+                    active: appSettings.configured && controller.syncPendingCount > 0 &&
+                            !controller.syncAllActive &&
+                            (!appSettings.serverUrl.startsWith("https://") || appSettings.trusted)
+                    onClicked: {
+                        root.dismissKeyboard()
+                        controller.syncAllPendingProgress()
+                    }
+                }
+            }
+
             FilterBar {
                 id: listFilter
-                anchors.top: parent.top
+                anchors.top: offlineActions.bottom
                 anchors.topMargin: 0
                 anchors.left: parent.left
                 anchors.right: parent.right
@@ -660,7 +698,8 @@ Window {
                                     (!appSettings.serverUrl.startsWith("https://") || appSettings.trusted)
                     nativeReader.show(controller.pagePath, controller.currentPage,
                                       controller.pageCount, controller.selectedTitle,
-                                      controller.bookCompleted, controller.status, canSync)
+                                      controller.bookCompleted, controller.status, canSync,
+                                      controller.downloadsActive)
                 }
             }
 
@@ -673,7 +712,13 @@ Window {
                 target: nativeReader
                 function onPreviousRequested() { controller.previousPage() }
                 function onNextRequested() { controller.nextPage() }
-                function onDownloadRequested() { controller.downloadCurrentBook() }
+                function onDownloadRequested() {
+                    if (controller.downloadsActive) {
+                        controller.cancelDownloads()
+                    } else {
+                        controller.downloadCurrentBook()
+                    }
+                }
                 function onSyncRequested() { controller.syncCurrentProgress() }
                 function onExitRequested() { controller.exit() }
                 function onBackRequested() { controller.back() }
@@ -730,8 +775,15 @@ Window {
                     width: 84
                     height: 64
                     icon: "down"
-                    active: !controller.currentBookDownloaded || !controller.colorPage
-                    onClicked: controller.downloadCurrentBook()
+                    active: controller.downloadsActive ||
+                            !controller.currentBookDownloaded || !controller.colorPage
+                    onClicked: {
+                        if (controller.downloadsActive) {
+                            controller.cancelDownloads()
+                        } else {
+                            controller.downloadCurrentBook()
+                        }
+                    }
                 }
 
                 ActionButton {

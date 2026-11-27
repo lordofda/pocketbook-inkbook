@@ -16,11 +16,22 @@
 struct PendingAction {
   QString name;
   QString id;
+  QString bookId;
   QString title;
   QString seriesId;
   int page = 0;
   bool manual = false;
   int epoch = 0;
+  int syncAllToken = 0;
+};
+
+struct DownloadJob {
+  QString bookId;
+  QString title;
+  QString seriesId;
+  int pagesRequestId = 0;
+  QVector<int> pages;
+  int pageIndex = 0;
 };
 
 class AppController : public QObject {
@@ -54,6 +65,10 @@ class AppController : public QObject {
   Q_PROPERTY(bool bookCompleted READ bookCompleted NOTIFY stateChanged)
   Q_PROPERTY(QString nextBookId READ nextBookId NOTIFY stateChanged)
   Q_PROPERTY(QString nextBookTitle READ nextBookTitle NOTIFY stateChanged)
+  Q_PROPERTY(int downloadQueueCount READ downloadQueueCount NOTIFY stateChanged)
+  Q_PROPERTY(bool downloadsActive READ downloadsActive NOTIFY stateChanged)
+  Q_PROPERTY(int syncPendingCount READ syncPendingCount NOTIFY stateChanged)
+  Q_PROPERTY(bool syncAllActive READ syncAllActive NOTIFY stateChanged)
 
  public:
   explicit AppController(Settings *settings, KomgaApi *api, BookStore *store,
@@ -89,6 +104,10 @@ class AppController : public QObject {
   bool bookCompleted() const;
   QString nextBookId() const;
   QString nextBookTitle() const;
+  int downloadQueueCount() const;
+  bool downloadsActive() const;
+  int syncPendingCount() const;
+  bool syncAllActive() const;
 
   Q_INVOKABLE void configure(const QString &url, const QString &key, const QString &name);
   Q_INVOKABLE void saveAccount(const QString &url, const QString &key, const QString &name);
@@ -122,11 +141,13 @@ class AppController : public QObject {
   Q_INVOKABLE void deleteOfflineBook(const QString &id);
   Q_INVOKABLE void syncCurrentProgress();
   Q_INVOKABLE void syncBookId(const QString &id);
+  Q_INVOKABLE void syncAllPendingProgress();
   Q_INVOKABLE void toggleStatusBar();
   void applyStatusBar();
   Q_INVOKABLE void back();
   Q_INVOKABLE void downloadCurrentBook();
   Q_INVOKABLE void downloadBookId(const QString &id);
+  Q_INVOKABLE void cancelDownloads();
   Q_INVOKABLE void nextPage();
   Q_INVOKABLE void previousPage();
   Q_INVOKABLE void setPage(int page);
@@ -157,11 +178,17 @@ class AppController : public QObject {
   void applyFilter();
   void insertPending(int requestId, const QString &name, const QString &id = QString(),
                      int page = 0, bool manual = false, const QString &title = QString(),
-                     const QString &seriesId = QString());
+                     const QString &seriesId = QString(), const QString &bookId = QString(),
+                     int syncAllToken = 0);
   bool isCurrent(const PendingAction &action) const;
   void clearReaderState();
   void beginDownload(const QString &id, const QString &title,
                      const QString &seriesId = QString());
+  void startNextDownloadJob();
+  void finishDownloadJob(bool ok, const QString &message);
+  void cancelActivePageDownload();
+  void clearDownloadQueue();
+  void removeDownloadJobsForBook(const QString &bookId);
   void resetForAccount(bool stayInSetup = false);
   void finishConnection();
   void populateLibraries(const QJsonArray &items);
@@ -175,12 +202,17 @@ class AppController : public QObject {
                        const QString &seriesId, int page, int pageCount);
   void refreshNextBook();
   double bookSortNumber(const QJsonObject &object) const;
-  void beginProgressSync(bool manual, const QString &bookId = QString(), bool allowOffline = false);
+  void beginProgressSync(bool manual, const QString &bookId = QString(), bool allowOffline = false,
+                         int syncAllToken = 0, bool bulk = false);
+  void startSyncAllProgress();
+  void startNextSyncAllBook();
+  void finishSyncAllBook(bool ok);
+  void resetSyncAll();
+  void removeSyncAllBook(const QString &bookId);
   void updatePage(int page);
   void scheduleProgressSync();
   void retryProgressSync();
   void startNextDownload();
-  void clearDownloads();
   QVector<int> pagesFromArray(const QJsonArray &items) const;
   QString bookTitle(const QJsonObject &object) const;
   QString seriesTitle(const QJsonObject &object) const;
@@ -218,15 +250,20 @@ class AppController : public QObject {
   QString currentBookTitle_;
   QString pageSource_;
   QString pagePath_;
-  QString downloadTargetId_;
-  QString downloadBookId_;
-  QVector<int> downloadQueue_;
-  int downloadQueueIndex_;
+  QVector<DownloadJob> downloadJobs_;
   int activeDownloadId_;
+  int downloadQueueCompleted_;
+  int downloadQueueFailed_;
   int syncCheckId_;
   int syncWriteId_;
   QString progressSyncBookId_;
   int progressRetryCount_;
+  QStringList syncAllQueue_;
+  int syncAllIndex_;
+  int syncAllToken_;
+  int syncAllSynced_;
+  int syncAllFailed_;
+  bool syncAllActive_;
   int requestEpoch_;
   int currentPage_;
   int pageCount_;
