@@ -368,13 +368,23 @@ Validation:
   qml/ListScroller.qml
 ```
 
-Host unit tests use a separate desktop-Qt CMake project and never touch the ARM build directory:
+Host unit tests use a separate desktop-Qt CMake project with `QTEST_GUILESS_MAIN` and never touch the ARM build directory:
 
 ```bash
 cmake -S tests/host -B build-host -G Ninja
 cmake --build build-host
 ctest --test-dir build-host --output-on-failure
 ```
+
+The host project registers three CTest targets:
+
+| Target | Source | Coverage |
+|---|---|---|
+| `settings_tests` | `tests/host/test_settings.cpp` with `src/settings.cpp` | Account initialization, startup/active selection, deletion guards, account list metadata, connection validation/normalization, TLS pin handling, status bar preference, cache paths. |
+| `book_store_tests` | `tests/host/test_book_store.cpp` with `src/settings.cpp` and `src/book_store.cpp` | Manifest validation, page storage, media-type extensions, download completeness, progress state, cache enumeration/stats, deletion, legacy directory fallback. |
+| `list_model_tests` | `tests/host/test_list_model.cpp` with `src/models.cpp` | Role names/data, model resets, badge and metadata updates, `dataChanged()` roles, contains/prefix filtering, row lookup. |
+
+Tests use `QTemporaryDir` fixtures so settings.ini and book cache files are isolated. `AppController`, `KomgaApi`, QML chrome, native InkView rendering/input, and firmware status bar behavior are intentionally outside the host suite; they require seams, loopback integration tests, `qmllint`, ARM build validation, and manual device checks.
 
 Releases:
 
@@ -415,14 +425,14 @@ Releases:
 - The custom scrollbar approximates position rather than using platform-native Controls.
 - Large libraries still depend on network speed and server response time.
 - Status bar behavior depends on InkView firmware support.
-- Host unit tests cover settings/account logic; InkView behavior still relies on ARM build success and manual device testing.
+- Host unit tests cover settings/accounts, cache manifests/pages, and list models; controller/network/QML/InkView behavior still relies on ARM build success and manual device testing.
 
 ## 14. Verification checklist
 
 Before release:
 
 1. `qmllint` passes for every QML file in `qml/komga.qrc`.
-2. Host CMake tests pass via `ctest --test-dir build-host --output-on-failure`.
+2. All three host CTest targets pass via `ctest --test-dir build-host --output-on-failure`.
 3. `./build.sh` succeeds and produces a 32-bit ARM `komga-reader.app`.
 4. `git diff --check` passes.
 5. Binary SHA-256 is recorded in release notes.
@@ -430,7 +440,7 @@ Before release:
 7. Tag points at the intended commit.
 8. No secrets are present in the working tree or commit history.
 
-Device acceptance checks:
+Device acceptance checks (manual only):
 
 - Setup and TLS trust flow.
 - Account add, edit, switch, set/clear startup, delete with confirmation.

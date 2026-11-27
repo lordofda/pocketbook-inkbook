@@ -73,13 +73,21 @@ QML validation:
   qml/InputField.qml qml/AccountRow.qml qml/FilterBar.qml qml/ListScroller.qml
 ```
 
-Host unit tests use desktop Qt and temporary settings/cache directories:
+Host unit tests use desktop Qt, `QTEST_GUILESS_MAIN`, and temporary settings/cache directories. They never link InkView code and never touch the ARM build directory:
 
 ```bash
 cmake -S tests/host -B build-host -G Ninja
 cmake --build build-host
 ctest --test-dir build-host --output-on-failure
 ```
+
+| CTest target | Coverage |
+|---|---|
+| `settings_tests` | Account initialization, startup/active selection, account deletion guards, connection save/clear, TLS pin handling, status bar preference, cache paths, URL/fingerprint normalization. |
+| `book_store_tests` | Manifest creation/load/save validation, page files and extension mapping, download completeness, pending progress, cache enumeration/stats, deletion, legacy cache directories. |
+| `list_model_tests` | Role names/data, item resets and count notifications, download and SYNC badge updates, contains/prefix filtering, row lookup helpers. |
+
+`AppController`, `KomgaApi`, QML chrome, the native InkView reader, and firmware status bar behavior are not automated in these host tests. Those paths still rely on `qmllint`, ARM build success, and device acceptance checks.
 
 ## Project layout
 
@@ -92,7 +100,7 @@ ctest --test-dir build-host --output-on-failure
 - `src/native_reader.cpp` — InkView bitmap rendering and reader input.
 - `src/settings.cpp` — persisted settings.
 - `src/device.cpp` — InkView screen/font/bootstrap and system status bar control.
-- `tests/host/` — desktop Qt unit tests for settings/account logic and cache manifests.
+- `tests/host/` — desktop Qt unit tests for settings/accounts, cache manifests/pages, and list model behavior.
 - `dist/komga-reader.app` — compiled sideloadable binary.
 
 ## Limitations
