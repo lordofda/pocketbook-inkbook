@@ -20,11 +20,12 @@ class Settings : public QObject {
   Q_PROPERTY(QVariantList accounts READ accounts NOTIFY configurationChanged)
   Q_PROPERTY(QString activeAccountId READ activeAccountId NOTIFY configurationChanged)
   Q_PROPERTY(QString activeAccountName READ activeAccountName WRITE setActiveAccountName NOTIFY configurationChanged)
-  Q_PROPERTY(QString defaultAccountId READ defaultAccountId NOTIFY configurationChanged)
-  Q_PROPERTY(QString defaultAccountName READ defaultAccountName NOTIFY configurationChanged)
+  Q_PROPERTY(QString startupAccountId READ startupAccountId NOTIFY configurationChanged)
+  Q_PROPERTY(QString startupAccountName READ startupAccountName NOTIFY configurationChanged)
 
  public:
   explicit Settings(QObject *parent = nullptr);
+  explicit Settings(const QString &cacheRoot, QObject *parent = nullptr);
 
   QString serverUrl() const;
   QString apiKey() const;
@@ -38,8 +39,8 @@ class Settings : public QObject {
   QVariantList accounts() const;
   QString activeAccountId() const;
   QString activeAccountName() const;
-  QString defaultAccountId() const;
-  QString defaultAccountName() const;
+  QString startupAccountId() const;
+  QString startupAccountName() const;
   QString bookCacheRoot() const;
 
   void setServerUrl(const QString &value);
@@ -58,7 +59,8 @@ class Settings : public QObject {
   Q_INVOKABLE void clearConnection();
   Q_INVOKABLE QString createAccount(const QString &name);
   Q_INVOKABLE bool switchAccount(const QString &id);
-  Q_INVOKABLE bool setDefaultAccount(const QString &id);
+  Q_INVOKABLE bool setStartupAccount(const QString &id);
+  Q_INVOKABLE bool clearStartupAccount();
   Q_INVOKABLE bool removeAccount(const QString &id);
 
  signals:
@@ -70,9 +72,7 @@ class Settings : public QObject {
   QString accountValue(const QString &key, const QString &id = QString()) const;
   void setAccountValue(const QString &key, const QString &value,
                        const QString &id = QString());
-  void ensureAccounts();
-  void migrateLegacySettings();
-  void migrateLegacyCache();
+  void initializeAccounts();
   QStringList accountIds() const;
   QString firstAccountId() const;
   void persist();

@@ -38,7 +38,7 @@ To map an account name to its `<account-id>`, open:
 /mnt/ext1/.komga-reader/settings.ini
 ```
 
-Qt writes account sections as `[accounts/<account-id>]`. Each section contains `name=...`, `url=...`, `apiKey=...`, `fingerprint=...` (the TLS pin), and `pem=...`. General values are written under `[%General]`: `startupAccount=...` is the account opened at launch, and `activeAccount=...` is the currently selected account.
+Qt writes account sections as `[accounts/<account-id>]`. Each section contains `name=...`, `url=...`, `apiKey=...`, `fingerprint=...` (the TLS pin), and `pem=...`. General values are written under `[%General]`: `startupAccount=...` is the account opened at launch when set, and `activeAccount=...` is the currently selected account used when startup is cleared.
 
 ## Recover manually
 
@@ -74,4 +74,4 @@ You can also delete it from a PC file manager. Do not delete `/mnt/ext1/.komga-r
 
 ## Note about progress
 
-The copied `manifest.json` files contain local page progress and any pending sync flag. If a manifest says `pending: true`, opening that book online starts a sync; leaving the reader starts an immediate sync for pending progress, and failed writes retry with bounded backoff while the reader remains open. There is no startup-wide pending-progress scan, offline books are skipped, and the existing server-ahead protection still applies.
+The copied `manifest.json` files contain local page progress, any pending sync flag, and (in newer caches) a series ID. If a manifest says `pending: true`, opening that book online starts a sync; leaving the reader starts an immediate sync for pending progress, and failed writes retry with bounded backoff after the reader closes. The offline `SYNC` badge and reader Sync button also push pending progress manually. There is no startup-wide pending-progress scan, automatic sync still skips offline-opened books, and the existing server-ahead protection still applies.

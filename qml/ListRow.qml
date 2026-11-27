@@ -13,11 +13,13 @@ Rectangle {
     property bool showDelete: false
     property bool showOpenSeries: false
     property bool showDownload: false
+    property bool showSync: false
     property int reservedWidth: (row.showDelete ? 132 : 0) + (row.showOpenSeries ? 132 : 0) + (row.showDownload ? 132 : 0)
     signal clicked()
     signal deleteClicked()
     signal openSeriesClicked()
     signal downloadClicked()
+    signal syncClicked()
 
     width: 100
     height: 132
@@ -63,6 +65,7 @@ Rectangle {
     }
 
     Text {
+        z: row.showSync ? 2 : 0
         anchors.right: parent.right
         anchors.rightMargin: 18 + row.reservedWidth
         anchors.verticalCenter: parent.verticalCenter
@@ -70,6 +73,15 @@ Rectangle {
         font.pixelSize: 19
         font.bold: true
         color: row.badge === "SYNC" ? "#995500" : (row.downloaded ? "#006600" : "#666666")
+
+        MouseArea {
+            anchors.fill: parent
+            visible: row.showSync && row.badge === "SYNC"
+            enabled: visible
+            z: 2
+            preventStealing: true
+            onClicked: row.syncClicked()
+        }
     }
 
     MouseArea {

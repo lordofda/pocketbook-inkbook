@@ -7,11 +7,11 @@ Rectangle {
     property string name: ""
     property string serverUrl: ""
     property bool active: false
-    property bool isDefault: false
+    property bool isStartup: false
     property bool configured: false
 
     signal useClicked()
-    signal defaultClicked()
+    signal startupClicked()
     signal editClicked()
     signal deleteClicked()
 
@@ -51,11 +51,11 @@ Rectangle {
         anchors.leftMargin: 18
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 10
-        text: row.active && row.isDefault ? "ACTIVE · STARTUP"
-              : (row.active ? "ACTIVE" : (row.isDefault ? "STARTUP" : (row.configured ? "READY" : "SETUP NEEDED")))
+        text: row.active && row.isStartup ? "ACTIVE · STARTUP"
+              : (row.active ? "ACTIVE" : (row.isStartup ? "STARTUP" : (row.configured ? "READY" : "SETUP NEEDED")))
         font.pixelSize: 19
         font.bold: true
-        color: row.active ? "#006600" : (row.isDefault ? "#114477" : "#777777")
+        color: row.active ? "#006600" : (row.isStartup ? "#114477" : "#777777")
     }
 
     MouseArea {
@@ -77,8 +77,8 @@ Rectangle {
             width: 110
             height: 58
             text: "Startup"
-            active: !row.isDefault
-            onClicked: row.defaultClicked()
+            active: !row.isStartup
+            onClicked: row.startupClicked()
         }
 
         ActionButton {

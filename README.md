@@ -16,13 +16,15 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 - Recently added series and on-deck books, using Komga's `/api/v1/series/new` and `/api/v1/books/ondeck` views.
 - Search and A–Z title filtering on every list view, with a Done button to dismiss the on-screen keyboard.
 - Finishing a book marks it complete in Komga and offers the next book in the series when available.
-- Open series action on book rows for downloading more of a series.
+- Open series action on book rows and offline rows whose cached manifest records a series ID.
 - Whole-book offline downloads with native InkView color rendering.
-- Offline books browser: open downloaded books without a server, delete local copies, and see cached size/count.
+- Offline books browser: open downloaded books without a server, open their series when the ID is cached, delete local copies, and see cached size/count.
 - Progress sync:
   - Automatic debounced sync after page turns.
   - Explicit page turns push the local page to Komga, so the server cannot pull the reader back to a newer page immediately.
-  - Manual `Sync` button in the reader.
+  - Sync in progress continues after leaving the reader.
+  - Manual `Sync` button in the reader, including offline-opened copies, with status shown in the native chrome.
+  - The offline `SYNC` badge is a button that pushes pending progress without opening the book.
   - When opening a book, the app checks Komga's stored progress. If the server is further ahead, the local position moves to the server page; otherwise the local page is pushed.
 - Native InkView reader: left/right thirds turn pages; a center tap toggles native bars with left/right arrows, a bold down-arrow download action, Sync, Exit, and Back.
 - Top bar keeps Home, Back, Refresh, Accounts, Bar, and Exit as text; In progress, Offline, Recently added, and On deck appear in a second row on non-reader screens.
@@ -35,7 +37,7 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 3. Disconnect/Eject the device and launch **Komga Reader** from Applications.
 4. Enter the Komga HTTPS URL and API key, then verify and trust the displayed SHA-256 certificate fingerprint.
 
-The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; the startup account is stored separately from the active account, and book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/<hashed-book-id>/`. The older temporary `books/books/<hashed-book-id>/` layout is still recognized. Changing or clearing a configured server URL/API key clears that account's cache. Existing single-account installs are migrated to a `default` account on first launch.
+The app stores settings and cached books only under `/mnt/ext1/.komga-reader/`. Accounts live in `settings.ini`; `startupAccount` is authoritative at launch when set, and `activeAccount` is used when startup is cleared. Book caches are isolated under `/mnt/ext1/.komga-reader/accounts/<account-id>/books/<hashed-book-id>/`. The older temporary `books/books/<hashed-book-id>/` layout is still recognized. Changing or clearing a configured server URL/API key clears that account's cache.
 If cached books do not appear after upgrading, see [CACHE_RECOVERY.md](CACHE_RECOVERY.md). Books cached by older grayscale builds must be downloaded again for vivid color.
 
 ## Security notes
@@ -70,6 +72,14 @@ QML validation:
   qml/InputField.qml qml/AccountRow.qml qml/FilterBar.qml qml/ListScroller.qml
 ```
 
+Host unit tests use desktop Qt and temporary settings/cache directories:
+
+```bash
+cmake -S tests/host -B build-host -G Ninja
+cmake --build build-host
+ctest --test-dir build-host --output-on-failure
+```
+
 ## Project layout
 
 - `qml/main.qml` — main UI, navigation, reader chrome.
@@ -81,6 +91,7 @@ QML validation:
 - `src/native_reader.cpp` — InkView bitmap rendering and reader input.
 - `src/settings.cpp` — persisted settings.
 - `src/device.cpp` — InkView screen/font/bootstrap and system status bar control.
+- `tests/host/` — desktop Qt unit tests for settings/account logic and cache manifests.
 - `dist/komga-reader.app` — compiled sideloadable binary.
 
 ## Limitations

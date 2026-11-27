@@ -87,6 +87,7 @@ bool BookStore::loadManifest(const QString &bookId, BookManifest *manifest) cons
   }
   manifest->id = bookId;
   manifest->title = object.value(QStringLiteral("title")).toString();
+  manifest->seriesId = object.value(QStringLiteral("seriesId")).toString();
   manifest->pageCount = object.value(QStringLiteral("pageCount")).toInt();
   manifest->lastPage = object.value(QStringLiteral("lastPage")).toInt();
   manifest->pending = object.value(QStringLiteral("pending")).toBool();
@@ -126,6 +127,7 @@ bool BookStore::saveManifest(const BookManifest &manifest) {
   QJsonObject object;
   object.insert(QStringLiteral("id"), manifest.id);
   object.insert(QStringLiteral("title"), manifest.title);
+  object.insert(QStringLiteral("seriesId"), manifest.seriesId);
   object.insert(QStringLiteral("pageCount"), manifest.pageCount);
   object.insert(QStringLiteral("lastPage"), manifest.lastPage);
   object.insert(QStringLiteral("pending"), manifest.pending);
@@ -149,11 +151,14 @@ bool BookStore::saveManifest(const BookManifest &manifest) {
 }
 
 bool BookStore::createManifest(const QString &bookId, const QString &title,
-                               const QJsonArray &pages) {
+                               const QJsonArray &pages, const QString &seriesId) {
   BookManifest manifest;
   loadManifest(bookId, &manifest);
   manifest.id = bookId;
   manifest.title = title;
+  if (!seriesId.isEmpty()) {
+    manifest.seriesId = seriesId;
+  }
   manifest.pageCount = 0;
   manifest.color = true;
   manifest.updatedAt = QDateTime::currentDateTimeUtc();
