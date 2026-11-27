@@ -97,6 +97,7 @@ ctest --test-dir build-host --output-on-failure
 
 ## Limitations
 
+- THE MULTI ACCOUNT FEATURE IS GLITCHY. Switching works, but setting default account, editing and saving does not always work correctly
 - First offline scope is whole-book downloads only.
 - Downloads run sequentially in a queue; starting another book queues it, and Cancel clears current and queued work.
 - The `In progress` sort uses Komga's `readProgress.readDate`.
