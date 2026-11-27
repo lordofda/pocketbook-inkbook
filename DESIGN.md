@@ -6,7 +6,7 @@ This document records the design decisions, architecture, UI behavior, and bug f
 
 The app is an experimental, AI-authored Qt Quick / C++ client. It is sideloaded as `komga-reader.app`, connects to a user-supplied Komga server, downloads whole books for offline reading, renders color pages through InkView, and syncs reading progress back to Komga.
 
-The released line is `v1.2.5`, which includes the native InkView renderer, reader-chrome refinements, startup account persistence fix, and whole-codebase review hardening described below.
+The released line is `v1.3.0`, which includes the native InkView renderer, reader-chrome refinements, startup account persistence fix, whole-codebase review hardening, offline progress controls, queued downloads, and Sync all described below.
 
 ## 2. Product goals
 
@@ -395,12 +395,14 @@ Releases:
 | `v1.2.3` | `20b6db2` | Color preprocessing, HQ refresh, account/default fixes, progress-push fix. |
 | `v1.2.4` | `ee95897` | Native InkView color rendering; published as a pre-release. |
 | `v1.2.5` | release commit | Reader-chrome refinements, startup account persistence, and whole-codebase review hardening. |
+| `v1.3.0` | release commit | Native/offline sync controls, clickable offline SYNC badge, cached-series navigation, queued downloads with Cancel, and Sync all for pending progress. |
 
-`v1.2.0` has a tag but no public GitHub release page. `v1.2.1`, `v1.2.2`, and `v1.2.3` have stable release pages with zipped binaries. `v1.2.4` remains a pre-release page; `v1.2.5` is the current stable release.
+`v1.2.0` has a tag but no public GitHub release page. `v1.2.1`, `v1.2.2`, and `v1.2.3` have stable release pages with zipped binaries. `v1.2.4` remains a pre-release page; `v1.3.0` is the current stable release.
 
 ## 12. Branching state at time of writing
 
-- `main`: released line at `v1.2.5`, pushed with all review-branch work merged.
+- `main`: released line at `v1.3.0`, pushed with all review-branch and feature-branch work merged.
+- `feature/reader-improvements`: completed queue and Sync all branch; merged into `main`.
 - `test/inkview-reader`: superseded InkView prototype branch; removed locally.
 - `cleanup/code-review`: former `v1.2.4` cleanup branch; removed locally.
 - `review/codebase-hardening`: completed review branch; removed locally after fast-forwarding `main`.
