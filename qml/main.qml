@@ -588,8 +588,11 @@ Window {
                     badge: model.badge
                     downloaded: model.downloaded
                     showDelete: controller.view === "offline"
-                    showOpenSeries: controller.view === "books" || controller.view === "inProgress" || controller.view === "onDeck"
+                    showOpenSeries: controller.view === "books" || controller.view === "inProgress" ||
+                                    controller.view === "onDeck" ||
+                                    (controller.view === "offline" && model.seriesId !== "")
                     showDownload: !model.downloaded && (controller.view === "books" || controller.view === "inProgress" || controller.view === "onDeck")
+                    showSync: controller.view === "offline" && model.badge === "SYNC"
                     onClicked: {
                         const id = model.itemId
                         root.dismissKeyboard()
@@ -619,6 +622,10 @@ Window {
                         root.dismissKeyboard()
                         controller.downloadBookId(model.itemId)
                     }
+                    onSyncClicked: {
+                        root.dismissKeyboard()
+                        controller.syncBookId(model.itemId)
+                    }
                 }
             }
 
@@ -640,9 +647,12 @@ Window {
                 if (controller.view !== "reader" || controller.pageSource === "" || !controller.colorPage) {
                     nativeReader.close()
                 } else {
+                    const canSync = controller.pageSource !== "" && !controller.busy &&
+                                    appSettings.configured &&
+                                    (!appSettings.serverUrl.startsWith("https://") || appSettings.trusted)
                     nativeReader.show(controller.pagePath, controller.currentPage,
                                       controller.pageCount, controller.selectedTitle,
-                                      controller.bookCompleted)
+                                      controller.bookCompleted, controller.status, canSync)
                 }
             }
 

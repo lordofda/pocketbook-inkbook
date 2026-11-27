@@ -16,13 +16,15 @@ A native Qt Quick / C++ Komga reader for PocketBook InkPad Color 3 (B288). It do
 - Recently added series and on-deck books, using Komga's `/api/v1/series/new` and `/api/v1/books/ondeck` views.
 - Search and A–Z title filtering on every list view, with a Done button to dismiss the on-screen keyboard.
 - Finishing a book marks it complete in Komga and offers the next book in the series when available.
-- Open series action on book rows for downloading more of a series.
+- Open series action on book rows and offline rows whose cached manifest records a series ID.
 - Whole-book offline downloads with native InkView color rendering.
-- Offline books browser: open downloaded books without a server, delete local copies, and see cached size/count.
+- Offline books browser: open downloaded books without a server, open their series when the ID is cached, delete local copies, and see cached size/count.
 - Progress sync:
   - Automatic debounced sync after page turns.
   - Explicit page turns push the local page to Komga, so the server cannot pull the reader back to a newer page immediately.
-  - Manual `Sync` button in the reader.
+  - Sync in progress continues after leaving the reader.
+  - Manual `Sync` button in the reader, including offline-opened copies, with status shown in the native chrome.
+  - The offline `SYNC` badge is a button that pushes pending progress without opening the book.
   - When opening a book, the app checks Komga's stored progress. If the server is further ahead, the local position moves to the server page; otherwise the local page is pushed.
 - Native InkView reader: left/right thirds turn pages; a center tap toggles native bars with left/right arrows, a bold down-arrow download action, Sync, Exit, and Back.
 - Top bar keeps Home, Back, Refresh, Accounts, Bar, and Exit as text; In progress, Offline, Recently added, and On deck appear in a second row on non-reader screens.
@@ -68,6 +70,14 @@ QML validation:
 /usr/lib/qt6/bin/qmllint --unqualified disable -W 0 \
   qml/main.qml qml/ActionButton.qml qml/IconButton.qml qml/ListRow.qml \
   qml/InputField.qml qml/AccountRow.qml qml/FilterBar.qml qml/ListScroller.qml
+```
+
+Host unit tests:
+
+```bash
+cmake -S tests/host -B build-host -G Ninja
+cmake --build build-host
+ctest --test-dir build-host --output-on-failure
 ```
 
 ## Project layout

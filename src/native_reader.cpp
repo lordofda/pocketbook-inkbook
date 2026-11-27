@@ -15,6 +15,7 @@
 namespace {
 
 constexpr int kTopBarHeight = 72;
+constexpr int kStatusHeight = 44;
 constexpr int kButtonBarHeight = 92;
 constexpr int kButtonCount = 6;
 
@@ -120,7 +121,7 @@ void NativeReader::activate() {
 }
 
 void NativeReader::show(const QString &path, int page, int pageCount, const QString &title,
-                        bool completed) {
+                        bool completed, const QString &status, bool syncEnabled) {
   QString localPath = path;
   if (localPath.startsWith(QStringLiteral("file://"))) {
     const QUrl url(localPath);
@@ -136,7 +137,7 @@ void NativeReader::show(const QString &path, int page, int pageCount, const QStr
     activate();
   }
   if (path_ == localPath && page_ == page && pageCount_ == pageCount && title_ == title &&
-      completed_ == completed) {
+      completed_ == completed && status_ == status && syncEnabled_ == syncEnabled) {
     return;
   }
   path_ = localPath;
@@ -144,6 +145,8 @@ void NativeReader::show(const QString &path, int page, int pageCount, const QStr
   pageCount_ = pageCount;
   title_ = title;
   completed_ = completed;
+  status_ = status;
+  syncEnabled_ = syncEnabled;
   drawTimer_.start();
 }
 
@@ -206,7 +209,9 @@ int NativeReader::eventHandler(int type, int par1, int par2) {
             emit self->downloadRequested();
             break;
           case 3:
-            emit self->syncRequested();
+            if (self->syncEnabled_) {
+              emit self->syncRequested();
+            }
             break;
           case 4:
             emit self->exitRequested();
@@ -334,6 +339,14 @@ void NativeReader::drawChrome() {
   DrawTextRect(16, 8, width - 32, kTopBarHeight - 16, headerBytes.constData(),
                ALIGN_LEFT | VALIGN_MIDDLE);
 
+  if (!status_.isEmpty()) {
+    FillArea(0, kTopBarHeight, width, kStatusHeight, WHITE);
+    DrawRect(0, kTopBarHeight, width, kStatusHeight, BLACK);
+    const QByteArray statusBytes = status_.toUtf8();
+    DrawTextRect(16, kTopBarHeight + 4, width - 32, kStatusHeight - 8, statusBytes.constData(),
+                 ALIGN_CENTER | VALIGN_MIDDLE);
+  }
+
   const int barTop = height - kButtonBarHeight;
   FillArea(0, barTop, width, kButtonBarHeight, WHITE);
   DrawRect(0, barTop, width, kButtonBarHeight, BLACK);
@@ -347,7 +360,7 @@ void NativeReader::drawChrome() {
     } else if (index == 2) {
       drawDownloadIcon(left + 4, barTop + 6, right - left - 8, kButtonBarHeight - 12);
     } else {
-      const QByteArray label(buttonLabel(index));
+      const QByteArray label(index == 3 && !syncEnabled_ ? "Sync off" : buttonLabel(index));
       DrawTextRect(left + 8, barTop + 10, right - left - 16, kButtonBarHeight - 20,
                    label.constData(), ALIGN_CENTER | VALIGN_MIDDLE);
     }

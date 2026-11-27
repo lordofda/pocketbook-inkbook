@@ -175,7 +175,7 @@ The status line shows `Working · <status>` while busy and `<status>` otherwise.
 | In progress | Books ordered by `readProgress.readDate`, descending. |
 | Recent | Recently added series from `/api/v1/series/new`. |
 | On deck | On-deck books from `/api/v1/books/ondeck`. |
-| Offline | Downloaded books with Delete action and cached-size summary. |
+| Offline | Downloaded books with Sync, Open series (when cached), Delete, and cached-size summary. |
 | Reader | InkView-rendered page, native tap zones/bars, mirrored QML fallback controls, completion banner. |
 
 ### 6.2.1 Top bar and reader chrome
@@ -188,9 +188,10 @@ In `v1.2.3`, top-bar `Bar:off` / `Bar:on` toggled the InkView system status bar;
 
 `ListRow.qml` exposes optional actions:
 
-- **Open series** on book rows, including in-progress and on-deck rows.
+- **Open series** on book rows, including in-progress, on-deck, and offline rows with a cached series ID.
 - **Download** on non-downloaded book rows.
 - **Delete** on offline rows.
+- **SYNC** on offline rows with pending progress; tapping the badge syncs that book without opening it.
 
 The row's tap area is limited to the left/text portion. Action buttons live in a right-hand row with higher z-order. This prevents row taps from accidentally triggering navigation when the user taps an action button.
 
@@ -242,7 +243,7 @@ A custom QML implementation was chosen over `QtQuick.Controls.ScrollBar` to avoi
 - Left third: previous page.
 - Middle third: toggle native InkView bars.
 - Right third: next page.
-- Native bars show title, page position, completion state, left/right arrows, bold down-arrow Download, Sync, Exit, and Back controls.
+- Native bars show title, page position, completion state, a sync status line, left/right arrows, bold down-arrow Download, Sync, Exit, and Back controls.
 - Finishing a book marks it complete in Komga and appends `Finished` to the native header.
 - The QML next-book banner remains only as a fallback when native rendering fails.
 
@@ -279,8 +280,10 @@ Before pushing local progress, the app fetches the book from Komga and re-reads 
 
 - If the server page is ahead, local state jumps to the server page.
 - Otherwise local progress is pushed.
-- Completion pushes `completed:true`.
-- Sync runs only for online books from the reader; leaving the reader starts an immediate sync for pending progress, failed writes retry with bounded backoff while the reader remains open, and overlapping sync checks are ignored.
+- Completion pushes `page` and `completed:true`.
+- Automatic sync runs for online books from the reader; leaving the reader starts an immediate sync for pending progress and does not cancel an in-flight check or write.
+- Manual sync works from the reader, including offline-opened copies, and from the offline `SYNC` badge.
+- Failed writes retry with bounded backoff even after leaving the reader; overlapping sync checks are ignored.
 
 Progress writes are local, then debounced to the server. This protects against overwriting newer server progress after offline reading.
 
@@ -288,16 +291,16 @@ Progress writes are local, then debounced to the server. This protects against o
 
 Downloads and reading progress are separate operations. A row **Download** must not mark a book as in progress.
 
-The cleanup branch separates download state from reader state. Row downloads no longer change `currentBookId_`, `currentPage_`, or progress. Page-update and progress-sync calls only run when the active view is `reader` and the downloaded book is the current online book.
+The cleanup branch separates download state from reader state. Row downloads no longer change `currentBookId_`, `currentPage_`, or progress. Page updates run for the active reader book; progress sync may continue in the background after the reader closes and may be started explicitly from offline rows.
 
 ## 8. Offline storage design
 
 - Downloads are whole-book only.
-- `createManifest()` writes page numbers and media types.
+- `createManifest()` writes page numbers, media types, and the cached series ID.
 - Pages are downloaded sequentially into a `.raw` temporary file, then stored unmodified in the per-account book folder.
 - Manifest records include a color-cache flag; grayscale caches from older builds prompt for a fresh download.
 - `BookStore` tracks local page, pending progress, downloaded count, cached size, and color-cache mode.
-- Offline books can be opened and deleted without a server connection.
+- Offline books can be opened, synced manually, and deleted without a server connection; Open series appears when the cached manifest has a series ID.
 - Deleting a downloaded book removes local page files; deleting an account removes only its settings, leaving the cache directory for manual recovery.
 
 ## 9. Bug solutions and design decisions

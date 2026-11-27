@@ -13,6 +13,7 @@
 struct BookManifest {
   QString id;
   QString title;
+  QString seriesId;
   int pageCount = 0;
   int lastPage = 0;
   bool pending = false;
@@ -43,7 +44,8 @@ class BookStore : public QObject {
   QString pagePath(const QString &bookId, int page) const;
   bool loadManifest(const QString &bookId, BookManifest *manifest) const;
   bool saveManifest(const BookManifest &manifest);
-  bool createManifest(const QString &bookId, const QString &title, const QJsonArray &pages);
+  bool createManifest(const QString &bookId, const QString &title, const QJsonArray &pages,
+                      const QString &seriesId = QString());
   bool storePage(const QString &bookId, int page, const QString &mediaType, const QByteArray &data);
   void setProgress(const QString &bookId, int page, bool pending);
   void clearPending(const QString &bookId);

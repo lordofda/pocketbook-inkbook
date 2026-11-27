@@ -38,6 +38,13 @@ bool isLoopbackHost(const QUrl &url) {
          host == QStringLiteral("::1");
 }
 
+int effectivePort(const QUrl &url) {
+  if (url.port() != -1) {
+    return url.port();
+  }
+  return url.scheme().compare(QStringLiteral("https"), Qt::CaseInsensitive) == 0 ? 443 : 80;
+}
+
 }
 
 KomgaApi::KomgaApi(Settings *settings, QObject *parent)
@@ -214,10 +221,9 @@ int KomgaApi::fetchInProgressBooks() {
 
 int KomgaApi::updateProgress(const QString &bookId, int page, bool completed) {
   QJsonObject body;
+  body.insert(QStringLiteral("page"), page);
   if (completed) {
     body.insert(QStringLiteral("completed"), true);
-  } else {
-    body.insert(QStringLiteral("page"), page);
   }
   const QString path =
       QStringLiteral("/api/v1/books/%1/read-progress").arg(encodedSegment(bookId));
@@ -352,7 +358,7 @@ void KomgaApi::onFinished() {
   const QUrl configured(settings_->serverUrl(), QUrl::TolerantMode);
   if (reply->url().scheme() != configured.scheme() ||
       reply->url().host().compare(configured.host(), Qt::CaseInsensitive) != 0 ||
-      reply->url().port() != configured.port()) {
+      effectivePort(reply->url()) != effectivePort(configured)) {
     fail(QStringLiteral("Server redirected to a different host"));
     return;
   }

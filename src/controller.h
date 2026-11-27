@@ -17,6 +17,7 @@ struct PendingAction {
   QString name;
   QString id;
   QString title;
+  QString seriesId;
   int page = 0;
   bool manual = false;
   int epoch = 0;
@@ -119,6 +120,7 @@ class AppController : public QObject {
   Q_INVOKABLE void openOfflineBookId(const QString &id);
   Q_INVOKABLE void deleteOfflineBook(const QString &id);
   Q_INVOKABLE void syncCurrentProgress();
+  Q_INVOKABLE void syncBookId(const QString &id);
   Q_INVOKABLE void toggleStatusBar();
   void applyStatusBar();
   Q_INVOKABLE void back();
@@ -153,10 +155,12 @@ class AppController : public QObject {
   void setStatus(const QString &status);
   void applyFilter();
   void insertPending(int requestId, const QString &name, const QString &id = QString(),
-                     int page = 0, bool manual = false, const QString &title = QString());
+                     int page = 0, bool manual = false, const QString &title = QString(),
+                     const QString &seriesId = QString());
   bool isCurrent(const PendingAction &action) const;
   void clearReaderState();
-  void beginDownload(const QString &id, const QString &title);
+  void beginDownload(const QString &id, const QString &title,
+                     const QString &seriesId = QString());
   void resetForAccount(bool stayInSetup = false);
   void finishConnection();
   void populateLibraries(const QJsonArray &items);
@@ -170,7 +174,7 @@ class AppController : public QObject {
                        const QString &seriesId, int page, int pageCount);
   void refreshNextBook();
   double bookSortNumber(const QJsonObject &object) const;
-  void beginProgressSync(bool manual);
+  void beginProgressSync(bool manual, const QString &bookId = QString(), bool allowOffline = false);
   void updatePage(int page);
   void scheduleProgressSync();
   void retryProgressSync();
@@ -220,6 +224,7 @@ class AppController : public QObject {
   int activeDownloadId_;
   int syncCheckId_;
   int syncWriteId_;
+  QString progressSyncBookId_;
   int progressRetryCount_;
   int requestEpoch_;
   int currentPage_;
